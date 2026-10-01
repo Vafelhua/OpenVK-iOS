@@ -1,0 +1,175 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unsigned:
+    name: Build unsigned IPA
+    runs-on: macos-13
+    timeout-minutes: 30
+
+    env:
+      PROJECT: OpenVK.xcodeproj
+      SCHEME: OpenVK
+      APP_NAME: OpenVK
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Xcode 15.4 — последняя версия, где минимальная цель сборки iOS 12.0.
+      - name: Select Xcode 15.4
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Toolchain info
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Archive (без подписи)
+        run: |
+          mkdir -p build
+          set -o pipefail
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            -archivePath "build/$APP_NAME.xcarchive" \
+            IPHONEOS_DEPLOYMENT_TARGET=12.0 \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            archive 2>&1 | tee build/build.log
+
+      - name: Упаковать .app в unsigned IPA
+        working-directory: build
+        run: |
+          APP_PATH="$APP_NAME.xcarchive/Products/Applications/$APP_NAME.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::Не найден $APP_PATH — сборка не удалась, смотрите build.log"
+            tail -n 60 build.log || true
+            exit 1
+          fi
+          rm -rf Payload
+          mkdir Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry "$APP_NAME-unsigned.ipa" Payload
+          ls -lh "$APP_NAME-unsigned.ipa"
+
+      - name: Список Swift-ошибок (если есть)
+        if: failure()
+        run: grep -E "error:|warning:" build/build.log | head -n 100 || true
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenVK-unsigned-ipa
+          path: OpenVK-iOS/build/*.ipa
+          if-no-files-found: error
+
+  signed:
+    name: Build signed IPA (Ad Hoc)
+    # Включается переменной репозитория ENABLE_SIGNING = true (см. README).
+    if: ${{ vars.ENABLE_SIGNING == 'true' }}
+    needs: unsigned
+    runs-on: macos-13
+    timeout-minutes: 30
+
+    env:
+      PROJECT: OpenVK.xcodeproj
+      SCHEME: OpenVK
+      APP_NAME: OpenVK
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 15.4
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Import certificate
+        env:
+          P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import "$RUNNER_TEMP/cert.p12" -k build.keychain -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Install provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          PROFILE_NAME: ${{ secrets.PROVISIONING_PROFILE_NAME }}
+        run: |
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "$PROFILE_BASE64" | base64 --decode \
+            > "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_NAME.mobileprovision"
+
+      - name: Archive with signing
+        env:
+          TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+          PROFILE: ${{ secrets.PROVISIONING_PROFILE_NAME }}
+        run: |
+          mkdir -p build
+          set -o pipefail
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            -archivePath "build/$APP_NAME-signed.xcarchive" \
+            IPHONEOS_DEPLOYMENT_TARGET=12.0 \
+            DEVELOPMENT_TEAM="$TEAM" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE" \
+            archive 2>&1 | tee build/build.log
+
+      - name: Export IPA
+        env:
+          TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
+          PROFILE: ${{ secrets.PROVISIONING_PROFILE_NAME }}
+        run: |
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>ad-hoc</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>teamID</key>
+              <string>$TEAM</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>org.openvk.openvkios</key>
+                  <string>$PROFILE</string>
+              </dict>
+          </dict>
+          </plist>
+          PLIST
+          set -o pipefail
+          xcodebuild \
+            -exportArchive \
+            -archivePath "build/$APP_NAME-signed.xcarchive" \
+            -exportPath build/export \
+            -exportOptionsPlist build/ExportOptions.plist 2>&1 | tee build/export.log
+
+      - name: Upload signed IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenVK-signed-ipa
+          path: OpenVK-iOS/build/export/*.ipa
+          if-no-files-found: error

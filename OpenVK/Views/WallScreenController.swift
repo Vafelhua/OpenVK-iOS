@@ -1,0 +1,249 @@
+import UIKit
+
+/// Общий экран «шапка профиля + стена»: используется страницами пользователя,
+/// сообщества и собственного профиля.
+class WallScreenController: TableScreenController {
+    /// Тег вторичных подписей в шапке (имя, статус).
+    static let secondaryLabelTag = 7_301
+
+    let headerView = UIView()
+    let headerStack = UIStackView()
+
+    private(set) var posts: [VKPost] = []
+    private var users: [Int: VKUser] = [:]
+    private var groups: [Int: VKGroup] = [:]
+    private var actionButtonGroups: [[UIButton]] = []
+
+    /// Владелец стены (сообщество передаёт отрицательный id).
+    var wallOwnerId: Int { return 0 }
+    var wallCount: String { return "20" }
+
+    override var itemsCount: Int { return posts.count }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        headerView.translatesAutoresizingMaskIntoConstraints = false
+        headerView.backgroundColor = Theme.card
+
+        headerStack.axis = .vertical
+        headerStack.spacing = 8
+        headerStack.translatesAutoresizingMaskIntoConstraints = false
+        headerStack.alignment = .fill
+        headerView.addSubview(headerStack)
+
+        let separator = UIView()
+        separator.backgroundColor = Theme.divider
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        headerView.addSubview(separator)
+
+        view.addSubview(headerView)
+
+        let safe = view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([
+            headerView.topAnchor.constraint(equalTo: safe.topAnchor),
+            headerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            headerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+
+            headerStack.topAnchor.constraint(equalTo: headerView.topAnchor, constant: 14),
+            headerStack.leadingAnchor.constraint(equalTo: headerView.leadingAnchor, constant: 16),
+            headerStack.trailingAnchor.constraint(equalTo: headerView.trailingAnchor, constant: -16),
+            headerStack.bottomAnchor.constraint(equalTo: headerView.bottomAnchor, constant: -14),
+
+            separator.leadingAnchor.constraint(equalTo: headerView.leadingAnchor),
+            separator.trailingAnchor.constraint(equalTo: headerView.trailingAnchor),
+            separator.bottomAnchor.constraint(equalTo: headerView.bottomAnchor),
+            separator.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale)
+        ])
+
+        pinTableTop(to: headerView.bottomAnchor)
+
+        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .refresh,
+                                                            target: self,
+                                                            action: #selector(refreshTapped))
+
+        buildHeader()
+        load()
+    }
+
+    // MARK: - Шапка (переопределяется)
+
+    func buildHeader() {}
+
+    struct HeaderParts {
+        let avatar: RemoteImageView
+        let title: UILabel
+        let subtitle: UILabel
+    }
+
+    /// Строка «аватар + имя + подпись».
+    func addHeaderParts(avatarSize: CGFloat = 56) -> HeaderParts {
+        let avatar = UIFactory.avatar(avatarSize, rounded: false)
+        let title = UIFactory.label("", size: 18, weight: .bold)
+        title.numberOfLines = 2
+        let subtitle = UIFactory.label("", size: 13, color: Theme.textSecondary, lines: 2)
+        subtitle.tag = WallScreenController.secondaryLabelTag
+
+        let textStack = UIStackView(arrangedSubviews: [title, subtitle])
+        textStack.axis = .vertical
+        textStack.spacing = 3
+
+        let row = UIStackView(arrangedSubviews: [avatar, textStack])
+        row.axis = .horizontal
+        row.spacing = 12
+        row.alignment = .center
+
+        headerStack.addArrangedSubview(row)
+        return HeaderParts(avatar: avatar, title: title, subtitle: subtitle)
+    }
+
+    /// Ряд кнопок-действий под шапкой.
+    func addActionRow(_ actions: [(title: String, action: Selector, color: UIColor)]) {
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.distribution = .fillEqually
+        stack.spacing = 8
+
+        for item in actions {
+            let button = UIButton(type: .system)
+            button.setTitle(item.title, for: .normal)
+            button.setTitleColor(item.color, for: .normal)
+            button.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+            button.backgroundColor = Theme.composerBackground
+            button.addTarget(self, action: item.action, for: .touchUpInside)
+            stack.addArrangedSubview(button)
+        }
+
+        stack.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        headerStack.addArrangedSubview(stack)
+        actionButtonGroups.append(stack.arrangedSubviews.compactMap { $0 as? UIButton })
+    }
+
+    // MARK: - Стена
+
+    @objc func refreshTapped() {
+        load()
+    }
+
+    override func load() {
+        loadWall()
+    }
+
+    func loadWall() {
+        setLoading(posts.isEmpty)
+        showStatus(nil)
+
+        VKApiClient.shared.call("wall.get", ["owner_id": String(wallOwnerId), "count": wallCount]) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.setLoading(false)
+                switch result {
+                case .success(let value):
+                    self.readProfilesAndGroups(value)
+                    self.posts = VKPost.readList(value)
+                    self.showStatus(self.posts.isEmpty ? "Записей пока нет" : nil)
+                    self.reload()
+                case .failure(let error):
+                    self.showError(error)
+                }
+            }
+        }
+    }
+
+    func readProfilesAndGroups(_ value: Any) {
+        users = VKUser.readList(value).reduce(into: [:]) { $0[$1.id] = $1 }
+        groups = VKGroup.readList(value).reduce(into: [:]) { $0[$1.id] = $1 }
+    }
+
+    func authorName(for post: VKPost) -> String {
+        if post.ownerIsGroup {
+            return groups[post.groupId]?.title ?? "Сообщество"
+        }
+        if let user = users[post.fromId != 0 ? post.fromId : post.ownerId] {
+            return user.name
+        }
+        return "OpenVK"
+    }
+
+    func authorPhoto(for post: VKPost) -> String? {
+        if post.ownerIsGroup {
+            return groups[post.groupId]?.photoMax
+        }
+        return users[post.fromId != 0 ? post.fromId : post.ownerId]?.photoMax
+    }
+
+    // MARK: - Таблица
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return posts.count
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let post = posts[indexPath.row]
+        let cell = table.dequeueReusableCell(withIdentifier: PostCell.reuseId, for: indexPath) as! PostCell
+        cell.configure(post: post, authorName: authorName(for: post), authorPhoto: authorPhoto(for: post))
+
+        cell.onLike = { [weak self] in
+            PostActions.toggleLike(post) {
+                guard let self = self, let row = self.posts.identityIndex(of: post) else { return }
+                self.table.reloadRows(at: [IndexPath(row: row, section: 0)], with: .none)
+            }
+        }
+        cell.onComment = { [weak self] in
+            guard let self = self else { return }
+            PostActions.openComments(post, in: self)
+        }
+        cell.onRepost = { [weak self] in
+            guard let self = self else { return }
+            PostActions.repost(post, in: self)
+        }
+        cell.onAuthor = { [weak self] in
+            self?.openAuthor(of: post)
+        }
+        return cell
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        table.deselectRow(at: indexPath, animated: true)
+        guard indexPath.row < posts.count else { return }
+        PostActions.openComments(posts[indexPath.row], in: self)
+    }
+
+    func openAuthor(of post: VKPost) {
+        if post.ownerIsGroup {
+            if let group = groups[post.groupId] {
+                Navigator.openGroup(group, in: self)
+            } else {
+                Navigator.openUser(id: -post.ownerId, in: self)
+            }
+        } else {
+            Navigator.openUser(id: post.fromId != 0 ? post.fromId : post.ownerId, in: self)
+        }
+    }
+
+    override func reload() {
+        table.reloadData()
+    }
+
+    override func applyTheme() {
+        super.applyTheme()
+        headerView.backgroundColor = Theme.card
+        for group in actionButtonGroups {
+            for button in group {
+                button.backgroundColor = Theme.composerBackground
+            }
+        }
+        recolorLabels(in: headerStack)
+    }
+
+    /// Перекрашивает подписи шапки: вторичные помечены тегом.
+    private func recolorLabels(in view: UIView) {
+        if let label = view as? UILabel {
+            label.textColor = (label.tag == secondaryLabelTag) ? Theme.textSecondary : Theme.textPrimary
+            return
+        }
+        for subview in view.subviews {
+            recolorLabels(in: subview)
+        }
+    }
+}
