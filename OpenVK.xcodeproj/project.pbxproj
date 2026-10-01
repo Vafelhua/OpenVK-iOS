@@ -51,7 +51,7 @@
 		1A000000000000000000007B /* UserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007A /* UserViewController.swift */; };
 		1A000000000000000000007D /* WallScreenController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007C /* WallScreenController.swift */; };
 		1A0000000000000000000080 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000007F /* LaunchScreen.storyboard */; };
-		1A0000000000000000000082 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000081 /* Assets.xcassets */};
+		1A0000000000000000000082 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000081 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
