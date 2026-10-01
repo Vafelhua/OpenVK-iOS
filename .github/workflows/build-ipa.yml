@@ -86,6 +86,35 @@ jobs:
           echo "--- tail ---"
           tail -n 40 build/build.log || true
 
+      - name: Сохранить ошибки в репозиторий
+        if: failure()
+        # Логи Actions недоступны без авторизации, поэтому кладём выжимку
+        # в репозиторий: так её можно прочитать без токена.
+        # [skip ci] не даёт этому коммиту запустить новую сборку.
+        run: |
+          mkdir -p ci
+          {
+            echo "# Ошибки сборки"
+            echo
+            echo "Коммит: ${GITHUB_SHA}"
+            echo "Прогон: ${GITHUB_RUN_ID}"
+            echo
+            echo '```'
+            grep -E "error:" build/build.log | head -n 60 || echo "(error: не найдено)"
+            echo '```'
+            echo
+            echo "## Последние строки build.log"
+            echo
+            echo '```'
+            tail -n 60 build/build.log || true
+            echo '```'
+          } > ci/BUILD_ERRORS.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ci/BUILD_ERRORS.md
+          git commit -q -m "ci: record build errors [skip ci]" || exit 0
+          git push -q origin HEAD:refs/heads/main
+
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
