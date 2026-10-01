@@ -69,7 +69,22 @@ jobs:
 
       - name: Список Swift-ошибок (если есть)
         if: failure()
-        run: grep -E "error:|warning:" build/build.log | head -n 100 || true
+        run: |
+          echo "### Swift errors" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -E "error:" build/build.log | head -n 60 >> "$GITHUB_STEP_SUMMARY" || \
+            echo "(no 'error:' lines found)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Last 40 lines of build.log" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 40 build/build.log >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          # Дублируем в stdout: логи видны без открытия summary.
+          echo "--- errors ---"
+          grep -E "error:" build/build.log | head -n 40 || echo "(none)"
+          echo "--- tail ---"
+          tail -n 40 build/build.log || true
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
