@@ -39,6 +39,10 @@ final class VKAttachment {
 
         if type == .photo, let object = J.dict(dict["photo"]) {
             photo = VKPhoto(dict: object)
+            title = J.getString(object, "text", "")
+            ownerId = photo?.ownerId ?? 0
+            id = photo?.id ?? 0
+            url = photo?.bigURL ?? ""
         } else if type == .audio, let object = J.dict(dict["audio"]) {
             audio = VKAudio(dict: object)
             title = audio?.displayName ?? ""
@@ -66,11 +70,6 @@ final class VKAttachment {
             ownerId = 0
             id = 0
             url = ""
-        }
-
-        if type == .photo {
-            ownerId = photo?.ownerId ?? 0
-            id = photo?.id ?? 0
         }
     }
 
