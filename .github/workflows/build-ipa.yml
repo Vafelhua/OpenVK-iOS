@@ -75,7 +75,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: OpenVK-unsigned-ipa
-          path: OpenVK-iOS/build/*.ipa
+          path: build/*.ipa
           if-no-files-found: error
 
   signed:
@@ -181,5 +181,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: OpenVK-signed-ipa
-          path: OpenVK-iOS/build/export/*.ipa
+          path: build/export/*.ipa
           if-no-files-found: error
