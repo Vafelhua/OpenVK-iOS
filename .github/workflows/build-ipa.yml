@@ -88,6 +88,15 @@ jobs:
 
       - name: Сохранить ошибки сборки
         if: failure()
+        # `::error::` создаёт аннотации в Checks API — они читаются
+        # без токена, в отличие от логов и артефактов.
+        run: |
+          grep -E "error:" build/build.log | head -n 25 | while IFS= read -r line; do
+            echo "::error title=Swift::$(echo "$line" | head -c 900)"
+          done || true
+          tail -n 12 build/build.log | while IFS= read -r line; do
+            echo "::error title=build.log::$(echo "$line" | head -c 900)"
+          done || true
         # Логи Actions недоступны без авторизации, поэтому упаковываем
         # build.log в артефакт: артефакты публичного репозитория
         # скачиваются без токена. Имя содержит номер прогона для поиска.
@@ -102,6 +111,22 @@ jobs:
           name: build-log
           path: build-errors-*.log
           if-no-files-found: ignore
+
+      - name: Диагностика без логов
+        if: failure()
+        # Логи, артефакты и step-summary требуют авторизации. Последний
+        # рубеж: дублируем ошибки в exit-код/вывод шага, который виден
+        # в списке шагов, и в summary в компактном виде.
+        run: |
+          {
+            echo "### build errors"
+            echo '```'
+            grep -E "error:" build/build.log | head -n 25 || echo "(none)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "DIAG_BEGIN"
+          grep -E "error:" build/build.log | head -n 25 || echo "(none)"
+          echo "DIAG_END"
 
       - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4

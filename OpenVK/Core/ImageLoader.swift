@@ -231,7 +231,7 @@ final class PhotoViewer: UIViewController {
         viewer.modalPresentationStyle = .overFullScreen
         viewer.modalPresentationCapturesStatusBarAppearance = true
         // Находим верхний контроллер: вызов может идти из ячейки глубоко в стеке.
-        var top: UIViewController? = UIApplication.shared.keyWindow?.rootViewController
+        var top: UIViewController? = AppDelegate.shared.window?.rootViewController
         while let presented = top?.presentedViewController { top = presented }
         top?.present(viewer, animated: false)
     }
