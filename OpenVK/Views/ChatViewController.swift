@@ -278,19 +278,12 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
         }
     }
 
-    
-
+    /// Пользователь внизу чата? От этого зависит, прокручивать ли новые
+    /// сообщения — иначе чат выкидывал на середину истории.
     private func isScrolledToBottom() -> Bool {
         guard table.numberOfSections > 0, table.numberOfRows(inSection: 0) > 0 else { return true }
         let visibleBottom = table.contentOffset.y + table.bounds.height - table.adjustedContentInset.bottom
         return visibleBottom >= table.contentSize.height - 80
-    }
-
-    private func scrollToBottom(animated: Bool) {
-        guard messages.isEmpty == false else { return }
-        let indexPath = IndexPath(row: messages.count - 1, section: 0)
-        guard table.numberOfRows(inSection: 0) > indexPath.row else { return }
-        table.scrollToRow(at: indexPath, at: .bottom, animated: animated)
     }
 
     override func reload() {

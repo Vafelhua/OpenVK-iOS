@@ -9,12 +9,17 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
     let refreshControl = UIRefreshControl()
 
     private let spinner = UIActivityIndicatorView(style: .gray)
-    private let scrollToBottomButton = UIButton(type: .system)
-    private let unreadBadge = UILabel()
+    /// Элементы панели чата. Не private: ими пользуется ChatViewController.
+    let scrollToBottomButton = UIButton(type: .system)
+    let unreadBadge = UILabel()
     private var scrollToBottomBottom: NSLayoutConstraint!
-    private var unreadCount = 0
-    private var isLoadingFirstPage = true
-    private var historyOffset = 0
+
+    /// Счётчик сообщений, пришедших пока пользователь листал историю вверх.
+    var unreadCount = 0
+    /// Смещение пагинации истории.
+    var historyOffset = 0
+    /// Первая страница ещё не открывалась снизу.
+    var isLoadingFirstPage = true
     private let statusLabel = UILabel()
     private let footerSpinner = UIActivityIndicatorView(style: .gray)
 
@@ -201,8 +206,8 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
         scrollToBottom(animated: true)
     }
 
-    /// Прокрутка к последней строке. Базовая реализация не знает
-    /// про чат, но экраны с лентой сообщений её переопределяют.
+    /// Прокрутка к последней строке. Базовая реализация не знает про чат,
+    /// поэтому проверки «пользователь уже внизу» живут в ChatViewController.
     func scrollToBottom(animated: Bool) {
         guard table.numberOfRows(inSection: 0) > 0 else { return }
         let last = IndexPath(row: table.numberOfRows(inSection: 0) - 1, section: 0)
