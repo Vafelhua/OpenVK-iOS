@@ -30,31 +30,46 @@ enum AuthService {
             .joined(separator: "&")
         request.httpBody = body.data(using: .utf8)
 
-        let configuration = URLSessionConfiguration.default
+let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 30
         let session = URLSession(configuration: configuration)
 
-        session.dataTask(with: request) { data, _, error in
+        session.dataTask(with: request) { data, response, error in
             if let error = error {
                 completion(.failure(VKError(code: 0, message: "Нет связи с сервером: \(error.localizedDescription)")))
                 return
             }
-            guard let data = data,
+            // Эндпоинт /token часто отдаёт 4xx с JSON-телом ошибки —
+            // статус проверяем, но тело всё равно пробуем разобрать.
+            let status = (response as? HTTPURLResponse)?.statusCode
+            if let status = status, status >= 500 {
+                completion(.failure(VKError(code: 0, message: "Сервер авторизации недоступен (HTTP \(status)).")))
+                return
+            }
+            guard let data = data, data.isEmpty == false,
                 let json = try? JSONSerialization.jsonObject(with: data, options: [.allowFragments]),
                 let dict = J.dict(json) else {
-                    completion(.failure(VKError(code: 0, message: "Сервер вернул неожиданный ответ.")))
-                    return
+                completion(.failure(VKError(code: 0, message: "Сервер вернул неожиданный ответ.")))
+                return
             }
 
             if dict.keys.contains("error_code") {
-                let message = J.getString(dict, "error_msg", "Неверный логин или пароль")
+                let raw = J.getString(dict, "error_msg", "Неверный логин или пароль")
                 let code = J.getInt(dict, "error_code", 0)
+                // OpenVK отдаёт код 4 «неверный пароль», 5 «не авторизован».
+                let message = (code == 4 || code == 5)
+                    ? "Неверный логин или пароль"
+                    : raw
                 completion(.failure(VKError(code: code, message: message)))
                 return
             }
             if let inner = J.dict(dict["error"]) {
-                completion(.failure(VKError(code: J.getInt(inner, "error_code", 0),
-                                          message: J.getString(inner, "error_msg", "Ошибка авторизации"))))
+                let innerCode = J.getInt(inner, "error_code", 0)
+                let raw = J.getString(inner, "error_msg", "Ошибка авторизации")
+                let message = (innerCode == 4 || innerCode == 5)
+                    ? "Неверный логин или пароль"
+                    : raw
+                completion(.failure(VKError(code: innerCode, message: message)))
                 return
             }
 

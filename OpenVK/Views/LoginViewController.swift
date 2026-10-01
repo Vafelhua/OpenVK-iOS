@@ -88,6 +88,11 @@ final class LoginViewController: UIViewController, UITextFieldDelegate {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         if loginField.text?.isEmpty != false { loginField.becomeFirstResponder() }
+        // Предупреждение о закончившейся сессии — один раз, поверх экрана входа.
+        if let reason = pendingReason {
+            pendingReason = nil
+            presentAlert(title: "Нужно войти снова", message: reason)
+        }
     }
 
     // MARK: - Действия
@@ -149,6 +154,16 @@ final class LoginViewController: UIViewController, UITextFieldDelegate {
             self.errorLabel.alpha = 1
         }
     }
+
+    /// Вызывается из AppDelegate, когда API вернул «токен истёк»:
+    /// сессия сброшена, поэтому экран входа нужно создать заново — с объяснением.
+    func showSessionExpired(_ reason: String) {
+        pendingReason = reason
+        loadViewIfNeeded()
+        errorLabel.text = reason
+    }
+
+    private var pendingReason: String?
 
     // MARK: - UITextFieldDelegate
 

@@ -12,6 +12,11 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
     private var isSearching = false
     private var searchBar: UISearchBar?
 
+    /// Смещение для догрузки ленты (`newsfeed.get` и `newsfeed.getGlobal`).
+    private var feedOffset = 0
+    /// Страница возвращает меньше лимита — значит, дальше записей нет.
+    private var reachedFeedEnd = false
+
     private let scopeButton = UIBarButtonItem(title: "Глобальная", style: .plain, target: nil, action: nil)
     private lazy var refreshButton = UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(refreshTapped))
     private lazy var searchButton = UIBarButtonItem(barButtonSystemItem: .search, target: self, action: #selector(searchTapped))
@@ -20,6 +25,7 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        paginationEnabled = true
         scopeButton.target = self
         scopeButton.action = #selector(scopeTapped)
         navigationItem.rightBarButtonItems = [searchButton, scopeButton, refreshButton]
@@ -37,9 +43,12 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         showStatus(nil)
 
         let method = isGlobal ? "newsfeed.getGlobal" : "newsfeed.get"
-        let parameters: [String: String] = isGlobal
+        var parameters: [String: String] = isGlobal
             ? ["count": "20"]
             : ["filters": "post", "count": "20"]
+        if feedOffset > 0 {
+            parameters["offset"] = String(feedOffset)
+        }
 
         VKApiClient.shared.call(method, parameters) { [weak self] result in
             DispatchQueue.main.async {
@@ -49,7 +58,19 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
                 switch result {
                 case .success(let value):
                     self.readProfilesAndGroups(value)
-                    self.posts = VKPost.readList(value)
+                    var fresh = VKPost.readList(value)
+                    if self.feedOffset > 0 {
+                        // Догрузка: не дублируем записи первой страницы.
+                        let known = Set(self.posts.map { $0.id })
+                        fresh = fresh.filter { known.contains($0.id) == false }
+                        self.posts = self.posts + fresh
+                        self.setLoadingMore(false)
+                    } else {
+                        self.feedOffset = fresh.count
+                        self.posts = fresh
+                    }
+                    // Страница короче лимита — лента исчерпана, догружать больше нечего.
+                    self.reachedFeedEnd = fresh.count < 20
                     self.showStatus(self.posts.isEmpty ? "Пока нет записей" : nil)
                     self.reload()
                 case .failure(let error):
@@ -60,28 +81,58 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
                         self.load()
                         return
                     }
+                    self.setLoadingMore(false)
                     self.showError(error)
                 }
             }
         }
     }
 
+    /// Догрузка следующей страницы ленты.
+    override func loadMore() {
+        guard isLoadingMore == false, isLoading == false, reachedFeedEnd == false else { return }
+        setLoadingMore(true)
+        feedOffset += 20
+        load()
+    }
+
+    /// Номер последнего введённого текста: ответы «старых» запросов игнорируются,
+    /// иначе медленный ответ по «кот» перетирает результат по «кото».
+    private var searchGeneration = 0
+    private var searchDebounce: DispatchWorkItem?
+
     private func runSearch(_ query: String) {
+        searchDebounce?.cancel()
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.isEmpty == false else {
             foundUsers = []
             foundPosts = []
+            showStatus(nil)
             reload()
             return
         }
+
+        // Пауза перед запросом: сокращает число обращений к API и убирает
+        // «мигание» результатов на каждое нажатие.
+        let work = DispatchWorkItem { [weak self] in self?.performSearch(text) }
+        searchDebounce = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
+    }
+
+    private func performSearch(_ text: String) {
+        searchGeneration += 1
+        let generation = searchGeneration
 
         setLoading(foundUsers.isEmpty && foundPosts.isEmpty)
         let group = DispatchGroup()
 
         group.enter()
-        VKApiClient.shared.call("users.search", ["q": text, "count": "15", "fields": "photo_100,status,online"]) { result in
+        VKApiClient.shared.call("users.search",
+                                ["q": text, "count": "15", "fields": "photo_100,status,online"],
+                                cancelKey: "newsfeed.search.users") { [weak self] result in
             if case .success(let value) = result {
                 DispatchQueue.main.async {
+                    guard let self = self, self.searchGeneration == generation else { return }
                     self.foundUsers = VKUser.readList(value, key: "items")
                     self.reload()
                 }
@@ -90,10 +141,13 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         }
 
         group.enter()
-        VKApiClient.shared.call("newsfeed.search", ["q": text, "count": "20"]) { result in
+        VKApiClient.shared.call("newsfeed.search",
+                                ["q": text, "count": "20"],
+                                cancelKey: "newsfeed.search.posts") { [weak self] result in
             switch result {
             case .success(let value):
                 DispatchQueue.main.async {
+                    guard let self = self, self.searchGeneration == generation else { return }
                     self.readProfilesAndGroups(value)
                     self.foundPosts = VKPost.readList(value)
                     self.reload()
@@ -105,9 +159,12 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         }
 
         group.notify(queue: .main) { [weak self] in
-            self?.setLoading(false)
-            if let self = self, self.foundUsers.isEmpty && self.foundPosts.isEmpty {
-                self.showStatus("Ничего не найдено")
+            guard let self = self, self.searchGeneration == generation else { return }
+            self.setLoading(false)
+            if self.foundUsers.isEmpty && self.foundPosts.isEmpty {
+                self.showStatus("Ничего не найдено по запросу «\(text)»")
+            } else {
+                self.showStatus(nil)
             }
         }
     }
@@ -129,6 +186,8 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         isGlobal = isGlobal == false
         updateScopeTitle()
         posts = []
+        feedOffset = 0
+        reachedFeedEnd = false
         load()
     }
 
@@ -142,6 +201,9 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
     }
 
     private func setSearchMode(_ enabled: Bool) {
+        searchDebounce?.cancel()
+        VKApiClient.shared.cancel("newsfeed.search.users")
+        VKApiClient.shared.cancel("newsfeed.search.posts")
         if enabled {
             let bar = UISearchBar()
             bar.delegate = self
@@ -174,7 +236,8 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
 
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
         searchBar.resignFirstResponder()
-        runSearch(searchBar.text ?? "")
+        searchDebounce?.cancel()
+        performSearch((searchBar.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
@@ -183,7 +246,9 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
 
     // MARK: - Таблица
 
-    var numberOfSections: Int { return isSearching ? 2 : 1 }
+    override func tableView(_ tableView: UITableView, numberOfSections section: Int) -> Int {
+        return isSearching ? 2 : 1
+    }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if isSearching {
@@ -213,8 +278,9 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         cell.configure(post: post, authorName: authorName(for: post), authorPhoto: authorPhoto(for: post))
 
         cell.onLike = { [weak self] in
-            PostActions.toggleLike(post) {
-                self?.reloadRow(with: post, isFound: self?.isSearching == true)
+            guard let self = self else { return }
+            PostActions.toggleLike(post, in: self) {
+                self.reloadRow(with: post, isFound: self.isSearching)
             }
         }
         cell.onComment = { [weak self] in

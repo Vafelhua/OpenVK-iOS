@@ -1,59 +1,86 @@
 import UIKit
 
-/// Загрузка картинок с кэшем в памяти и на диске (URLCache) + токен/UA в запросе.
+/// Загрузка картинок: кэш в памяти + на диске, дедупликация одинаковых запросов.
 final class ImageLoader {
     static let shared = ImageLoader()
 
     private let memory = NSCache<NSURL, UIImage>()
     private let lock = NSLock()
     private var callbacks: [String: [(UIImage?) -> Void]] = [:]
-    private lazy var session: URLSession = {
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30
-        configuration.httpAdditionalHeaders = ["User-Agent": VKConstants.userAgent]
-        return URLSession(configuration: configuration)
-    }()
+
+    /// Отдельная очередь: чтение и запись диск-кэша не должны блокировать UI.
+    private let ioQueue = DispatchQueue(label: "org.openvk.images", qos: .utility, attributes: .concurrent)
+
+    private lazy var session = VKApiClient.sharedSession
 
     private init() {
         memory.countLimit = 300
         memory.totalCostLimit = 64 * 1024 * 1024
+        ioQueue.async { self.pruneDiskCacheIfNeeded() }
+    }
+
+    // MARK: - Загрузка
+
+    /// Освобождает память по сигналу UIApplication.didReceiveMemoryWarningNotification.
+    func purgeMemory() {
+        memory.removeAllObjects()
     }
 
     func load(_ urlString: String?, completion: @escaping (UIImage?) -> Void) {
         guard let raw = urlString, raw.isEmpty == false, let url = URL(string: raw) else {
-            completion(nil)
+            DispatchQueue.main.async { completion(nil) }
             return
         }
 
+        // 1. Память — синхронно, это дешёвый NSCache.
         if let cached = memory.object(forKey: url as NSURL) {
-            completion(cached)
-            return
-        }
-        let path = cachePath(for: url)
-        if let data = try? Data(contentsOf: URL(fileURLWithPath: path)), let cached = UIImage(data: data) {
-            memory.setObject(cached, forKey: url as NSURL)
-            completion(cached)
+            DispatchQueue.main.async { completion(cached) }
             return
         }
 
+        // 2. Регистрируем обработчик. Если такой URL уже грузится или лежит
+        //    в очереди на диск-чтение — просто добавимся в список ожидания.
         lock.lock()
         let isFirst = (callbacks[raw] == nil)
         callbacks[raw, default: []].append(completion)
         lock.unlock()
         guard isFirst else { return }
 
+        // 3. Диск-кэш читаем в фоне, раньше результата не показываем ничего.
+        ioQueue.async { [weak self] in
+            guard let self = self else { return }
+            let cached = self.readFromDisk(url: url)
+            if let image = cached {
+                self.memory.setObject(image, forKey: url as NSURL, cost: self.imageCost(image))
+                self.finish(raw: raw, image: image)
+                return
+            }
+            self.startNetwork(url: url, raw: raw)
+        }
+    }
+
+    private func startNetwork(url: URL, raw: String) {
         var request = URLRequest(url: url)
+        request.timeoutInterval = 30
         if let token = LocalSettings.shared.token, token.isEmpty == false {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
-        session.dataTask(with: request) { [weak self] data, _, _ in
+        session.dataTask(with: request) { [weak self] data, response, _ in
             guard let self = self else { return }
-            let image = data.flatMap { UIImage(data: $0) }
-            if let image = image {
-                self.memory.setObject(image, forKey: url as NSURL, cost: imageCost(image))
-                self.writeToDisk(data: data, for: url)
+
+            // Страница ошибки (HTML 404/500) не является картинкой — в кэш её не кладём.
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                self.finish(raw: raw, image: nil)
+                return
             }
+            guard let data = data, data.isEmpty == false, let image = UIImage(data: data) else {
+                self.finish(raw: raw, image: nil)
+                return
+            }
+
+            self.memory.setObject(image, forKey: url as NSURL, cost: self.imageCost(image))
+            self.writeToDisk(data: data, for: url)
             self.finish(raw: raw, image: image)
         }.resume()
     }
@@ -95,9 +122,46 @@ final class ImageLoader {
         return String(hash, radix: 16)
     }
 
+    private func readFromDisk(url: URL) -> UIImage? {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath(for: url))) else {
+            return nil
+        }
+        return UIImage(data: data)
+    }
+
     private func writeToDisk(data: Data?, for url: URL) {
         guard let data = data, data.count < 4 * 1024 * 1024 else { return }
-        try? data.write(to: URL(fileURLWithPath: cachePath(for: url)))
+        try? data.write(to: URL(fileURLWithPath: cachePath(for: url)), options: .atomic)
+    }
+
+    /// Без предела дисковый кэш растёт до конца свободного места. Раз в запуск
+    /// подрезаем его до 64 МБ, удаляя самые старые файлы.
+    private func pruneDiskCacheIfNeeded() {
+        let limit: UInt64 = 64 * 1024 * 1024
+        let keys: [URLResourceKey] = [.fileSizeKey, .contentModificationDateKey]
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: cacheDirectory,
+            includingPropertiesForKeys: keys,
+            options: .skipsHiddenFiles
+        ) else { return }
+
+        var entries: [(url: URL, size: UInt64, date: Date)] = []
+        var total: UInt64 = 0
+        for file in files {
+            guard let values = try? file.resourceValues(forKeys: Set(keys)) else { continue }
+            let size = UInt64(values.fileSize ?? 0)
+            total += size
+            entries.append((file, size, values.contentModificationDate ?? .distantPast))
+        }
+
+        guard total > limit else { return }
+        entries.sort { $0.date < $1.date }
+        var freed: UInt64 = 0
+        for entry in entries {
+            if total - freed <= limit { break }
+            try? FileManager.default.removeItem(at: entry.url)
+            freed += entry.size
+        }
     }
 
     private func imageCost(_ image: UIImage) -> Int {
@@ -128,6 +192,11 @@ final class RemoteImageView: UIImageView {
     }
 
     func setRemote(_ urlString: String?, placeholder: UIColor? = nil) {
+        // Тот же URL — перезагрузка не нужна, иначе картинка мигает при переиспользовании.
+        if currentURL == urlString, image != nil || urlString?.isEmpty != false {
+            if urlString?.isEmpty == false { backgroundColor = .clear }
+            return
+        }
         currentURL = urlString
         image = nil
         let color = placeholder ?? placeholderColor
@@ -140,9 +209,111 @@ final class RemoteImageView: UIImageView {
         }
     }
 
+    var remoteURL: String? { return currentURL }
+
     func clear() {
         currentURL = nil
         image = nil
         backgroundColor = .clear
+    }
+}
+
+/// Просмотр фотографии во весь экран с зумом и pinch-to-zoom.
+final class PhotoViewer: UIViewController {
+    private let urlString: String
+    private let imageView = UIScrollView()
+    private let imageContent = UIImageView()
+    private let closeButton = UIButton(type: .system)
+    private let spinner = UIActivityIndicatorView(style: .gray)
+
+    static func present(url: String) {
+        let viewer = PhotoViewer(urlString: url)
+        viewer.modalPresentationStyle = .overFullScreen
+        viewer.modalPresentationCapturesStatusBarAppearance = true
+        // Находим верхний контроллер: вызов может идти из ячейки глубоко в стеке.
+        var top: UIViewController? = UIApplication.shared.keyWindow?.rootViewController
+        while let presented = top?.presentedViewController { top = presented }
+        top?.present(viewer, animated: false)
+    }
+
+    init(urlString: String) {
+        self.urlString = urlString
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = UIColor.black
+
+        closeButton.setTitle("✕", for: .normal)
+        closeButton.setTitleColor(.white, for: .normal)
+        closeButton.titleLabel?.font = UIFont.systemFont(ofSize: 30, weight: .light)
+        closeButton.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+
+        imageContent.contentMode = .scaleAspectFit
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.delegate = self
+        imageView.minimumZoomScale = 1
+        imageView.maximumZoomScale = 4
+        imageView.showsHorizontalScrollIndicator = false
+        imageView.showsVerticalScrollIndicator = false
+        imageView.addSubview(imageContent)
+
+        spinner.color = .white
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.startAnimating()
+
+        view.addSubview(imageView)
+        view.addSubview(spinner)
+        view.addSubview(closeButton)
+
+        let safe = view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([
+            imageView.topAnchor.constraint(equalTo: safe.topAnchor),
+            imageView.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
+            imageView.bottomAnchor.constraint(equalTo: safe.bottomAnchor),
+
+            imageContent.topAnchor.constraint(equalTo: imageView.topAnchor),
+            imageContent.leadingAnchor.constraint(equalTo: imageView.leadingAnchor),
+            imageContent.trailingAnchor.constraint(equalTo: imageView.trailingAnchor),
+            imageContent.bottomAnchor.constraint(equalTo: imageView.bottomAnchor),
+            imageContent.widthAnchor.constraint(equalTo: imageView.widthAnchor),
+            imageContent.heightAnchor.constraint(equalTo: imageView.heightAnchor),
+
+            spinner.centerXAnchor.constraint(equalTo: safe.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: safe.centerYAnchor),
+
+            closeButton.topAnchor.constraint(equalTo: safe.topAnchor, constant: 8),
+            closeButton.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -16)
+        ])
+
+        // Тап по снимку закрывает просмотр; щипок — зум.
+        let tap = UITapGestureRecognizer(target: self, action: #selector(closeTapped))
+        imageView.addGestureRecognizer(tap)
+
+        ImageLoader.shared.load(urlString) { [weak self] image in
+            guard let self = self else { return }
+            self.spinner.stopAnimating()
+            guard let image = image else {
+                self.presentAlert(title: "Не удалось открыть", message: "Фотография не загрузилась.")
+                return
+            }
+            self.imageContent.image = image
+        }
+    }
+
+    @objc private func closeTapped() {
+        dismiss(animated: true)
+    }
+}
+
+extension PhotoViewer: UIScrollViewDelegate {
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+        return imageContent
     }
 }

@@ -4,6 +4,8 @@ import UIKit
 final class CommentsViewController: TableScreenController {
     private let post: VKPost
     private var comments: [VKComment] = []
+    /// Смещение для догрузки следующих страниц комментариев.
+    private var commentsOffset = 0
 
     private let composer = UIView()
     private let input = UITextField()
@@ -23,6 +25,7 @@ final class CommentsViewController: TableScreenController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        paginationEnabled = true
         title = "Комментарии"
         navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Закрыть",
                                                            style: .plain,
@@ -122,6 +125,9 @@ final class CommentsViewController: TableScreenController {
         if post.ownerId != 0 {
             parameters["owner_id"] = String(post.ownerId)
         }
+        if commentsOffset > 0 {
+            parameters["offset"] = String(commentsOffset)
+        }
 
         VKApiClient.shared.call("wall.getComments", parameters) { [weak self] result in
             DispatchQueue.main.async {
@@ -129,14 +135,34 @@ final class CommentsViewController: TableScreenController {
                 self.setLoading(false)
                 switch result {
                 case .success(let value):
-                    self.comments = VKComment.readList(value)
+                    var fresh = VKComment.readList(value)
+                    if self.commentsOffset > 0 {
+                        // Догрузка: фильтруем по id, комментарии любят повторяться
+                        // при пересечении страниц.
+                        let known = Set(self.comments.map { $0.id })
+                        fresh = fresh.filter { known.contains($0.id) == false }
+                        self.comments = self.comments + fresh
+                        self.setLoadingMore(false)
+                    } else {
+                        self.commentsOffset = fresh.count
+                        self.comments = fresh
+                    }
                     self.showStatus(self.comments.isEmpty ? "Комментариев пока нет" : nil)
                     self.reload()
                 case .failure(let error):
+                    self.setLoadingMore(false)
                     self.showError(error)
                 }
             }
         }
+    }
+
+    /// Догрузка следующей страницы комментариев.
+    override func loadMore() {
+        guard isLoadingMore == false, isLoading == false, comments.isEmpty == false else { return }
+        setLoadingMore(true)
+        commentsOffset += 30
+        load()
     }
 
     @objc private func sendTapped() {

@@ -1,5 +1,10 @@
 import Foundation
 
+/// Токен OpenVK недействителен — приложение должно вернуться на экран входа.
+extension Notification.Name {
+    static let openVKAuthExpired = Notification.Name("OpenVKAuthExpired")
+}
+
 /// HTTP-клиент OpenVK API (VK-совместимый).
 ///
 /// Запросы уходят POST'ом в `{инстанс}/method/{метод}` (form-url-encoded),
@@ -8,14 +13,20 @@ import Foundation
 final class VKApiClient {
     static let shared = VKApiClient()
 
-    private lazy var session: URLSession = {
+    /// Общая сессия: переиспользование соединения и пула сокетов.
+    static let sharedSession: URLSession = {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 30
         configuration.timeoutIntervalForResource = 120
         configuration.httpAdditionalHeaders = ["User-Agent": VKConstants.userAgent]
         configuration.httpShouldSetCookies = false
+        configuration.requestCachePolicy = .useProtocolCachePolicy
         return URLSession(configuration: configuration)
     }()
+
+    private lazy var session = VKApiClient.sharedSession
+    private var tasks: [String: URLSessionDataTask] = [:]
+    private let tasksLock = NSLock()
 
     private init() {}
 
@@ -34,14 +45,20 @@ final class VKApiClient {
 
     /// Вызывает метод API. `Result` содержит «сырой» разобранный ответ:
     /// либо словарь, либо массив (как у `users.get`).
+    ///
+    /// - Parameter cancelKey: если задан, предыдущий запрос с тем же ключом
+    ///   отменяется. Нужен для поиска, где каждый новый запрос вытесняет предыдущий.
     @discardableResult
     func call(_ method: String,
               _ parameters: [String: String] = [:],
+              cancelKey: String? = nil,
               completion: @escaping (Result<Any, VKError>) -> Void) -> Bool {
         guard let baseURL = buildURL(method) else {
-            completion(.failure(VKError(code: 0, message: "Некорректный адрес метода")))
+            deliver(.failure(VKError(code: 0, message: "Некорректный адрес метода")), completion: completion)
             return false
         }
+
+        if let key = cancelKey { cancelPending(key) }
 
         let token = LocalSettings.shared.token ?? ""
         var form = parameters
@@ -53,11 +70,13 @@ final class VKApiClient {
 
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         var query = components?.queryItems ?? []
-        query.append(URLQueryItem(name: "access_token", value: token))
+        if token.isEmpty == false {
+            query.append(URLQueryItem(name: "access_token", value: token))
+        }
         components?.queryItems = query
 
         guard let url = components?.url else {
-            completion(.failure(VKError(code: 0, message: "Некорректный адрес метода")))
+            deliver(.failure(VKError(code: 0, message: "Некорректный адрес метода")), completion: completion)
             return false
         }
 
@@ -70,32 +89,61 @@ final class VKApiClient {
         }
         request.httpBody = encodeForm(form).data(using: .utf8)
 
-        session.dataTask(with: request) { data, _, error in
+        let task = session.dataTask(with: request) { [weak self] data, response, error in
+            guard let self = self else { return }
+            self.forget(cancelKey: cancelKey)
+
             if let error = error {
-                completion(.failure(VKError(code: 0, message: "Нет связи с сервером: \(error.localizedDescription)")))
+                // Отменённый запрос — не ошибка, о нём уже сообщил вызывающий.
+                if (error as NSError).code == NSURLErrorCancelled { return }
+                self.deliver(.failure(VKError(code: 0,
+                                              message: "Нет связи с сервером: \(error.localizedDescription)")),
+                             completion: completion)
                 return
             }
+
+            // Прокси и some-инстансы отдают HTML-заглушку с кодом 200/5xx —
+            // без проверки статуса JSON-парсер падал бы с невнятным сообщением.
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                let message = (400...499).contains(http.statusCode)
+                    ? "Сервер отклонил запрос (HTTP \(http.statusCode)). Проверьте адрес в настройках."
+                    : "Сервер недоступен (HTTP \(http.statusCode)). Попробуйте позже."
+                self.deliver(.failure(VKError(code: 0, message: message)), completion: completion)
+                return
+            }
+
             guard let data = data, data.isEmpty == false else {
-                completion(.failure(VKError(code: 0, message: "Пустой ответ сервера")))
+                self.deliver(.failure(VKError(code: 0, message: "Пустой ответ сервера")), completion: completion)
                 return
             }
             do {
                 let json = try JSONSerialization.jsonObject(with: data, options: [.allowFragments])
-                completion(.success(try self.parse(json, method: method)))
+                self.deliver(.success(try self.parse(json, method: method)), completion: completion)
             } catch let error as VKError {
-                completion(.failure(error))
+                self.deliver(.failure(error), completion: completion)
             } catch {
-                completion(.failure(VKError(code: 0, message: "Некорректный ответ сервера (метод \(method))")))
+                self.deliver(.failure(VKError(code: 0,
+                                              message: "Сервер вернул не-JSON ответ (метод \(method)). Проверьте адрес сервера в настройках.")),
+                             completion: completion)
             }
-        }.resume()
+        }
+
+        register(cancelKey: cancelKey, task: task)
+        task.resume()
         return true
+    }
+
+    /// Отменяет ранее отправленный запрос с тем же ключом.
+    func cancel(_ cancelKey: String) {
+        cancelPending(cancelKey)
     }
 
     /// Короткая обёртка: сразу отдаёт словарь (для методов с «response»-объектом).
     func callDict(_ method: String,
                   _ parameters: [String: String] = [:],
+                  cancelKey: String? = nil,
                   completion: @escaping (Result<[String: Any], VKError>) -> Void) {
-        call(method, parameters) { result in
+        call(method, parameters, cancelKey: cancelKey) { result in
             switch result {
             case .success(let value):
                 if let dict = J.dict(value) {
@@ -118,7 +166,7 @@ final class VKApiClient {
                 fileName: String,
                 completion: @escaping (Result<[String: Any], VKError>) -> Void) {
         guard let url = URL(string: uploadURL) else {
-            completion(.failure(VKError(code: 0, message: "Нет адреса загрузки")))
+            deliver(.failure(VKError(code: 0, message: "Нет адреса загрузки")), completion: completion)
             return
         }
         let boundary = "OpenVKBoundary" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
@@ -137,18 +185,29 @@ final class VKApiClient {
         }
         request.httpBody = body
 
-        session.dataTask(with: request) { data, _, error in
+        session.dataTask(with: request) { [weak self] data, response, error in
+            guard let self = self else { return }
             if let error = error {
-                completion(.failure(VKError(code: 0, message: "Не удалось загрузить файл: \(error.localizedDescription)")))
+                if (error as NSError).code == NSURLErrorCancelled { return }
+                self.deliver(.failure(VKError(code: 0,
+                                              message: "Не удалось загрузить файл: \(error.localizedDescription)")),
+                             completion: completion)
+                return
+            }
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                self.deliver(.failure(VKError(code: 0,
+                                              message: "Загрузка отклонена сервером (HTTP \(http.statusCode)).")),
+                             completion: completion)
                 return
             }
             guard let data = data,
                 let json = try? JSONSerialization.jsonObject(with: data, options: [.allowFragments]),
                 let dict = J.dict(json) else {
-                    completion(.failure(VKError(code: 0, message: "Некорректный ответ при загрузке файла")))
-                    return
+                self.deliver(.failure(VKError(code: 0, message: "Некорректный ответ при загрузке файла")),
+                             completion: completion)
+                return
             }
-            completion(.success(dict))
+            self.deliver(.success(dict), completion: completion)
         }.resume()
     }
 
@@ -175,6 +234,57 @@ final class VKApiClient {
             return dict
         }
         return root
+    }
+
+    // MARK: - Доставка результата
+
+    /// Результат всегда приходит в главный поток, а протухший токен один раз
+    /// порождает уведомление для AppDelegate.
+    private func deliver(_ result: Result<Any, VKError>, completion: @escaping (Result<Any, VKError>) -> Void) {
+        if case .failure(let error) = result, error.isAuthExpired {
+            notifyAuthExpiredOnce(error)
+        }
+        DispatchQueue.main.async { completion(result) }
+    }
+
+    private var authExpiredNotified = false
+
+    private func notifyAuthExpiredOnce(_ error: VKError) {
+        // Несколько параллельных запросов обычно падают одновременно —
+        // показываем предупреждение пользователю только один раз.
+        guard authExpiredNotified == false else { return }
+        authExpiredNotified = true
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .openVKAuthExpired, object: error)
+        }
+    }
+
+    /// Сбрасывает «уже показали предупреждение» — новый вход должен снова его получить.
+    func resetAuthExpiredFlag() {
+        authExpiredNotified = false
+    }
+
+    // MARK: - Отмена запросов
+
+    private func register(cancelKey: String?, task: URLSessionDataTask) {
+        guard let key = cancelKey else { return }
+        tasksLock.lock()
+        tasks[key] = task
+        tasksLock.unlock()
+    }
+
+    private func forget(cancelKey: String?) {
+        guard let key = cancelKey else { return }
+        tasksLock.lock()
+        tasks.removeValue(forKey: key)
+        tasksLock.unlock()
+    }
+
+    private func cancelPending(_ key: String) {
+        tasksLock.lock()
+        let task = tasks.removeValue(forKey: key)
+        tasksLock.unlock()
+        task?.cancel()
     }
 
     // MARK: - Утилиты

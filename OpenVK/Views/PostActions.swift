@@ -2,7 +2,7 @@ import UIKit
 
 /// Общие действия над записью: лайк, комментарии, репост.
 enum PostActions {
-    static func toggleLike(_ post: VKPost, completion: @escaping () -> Void) {
+    static func toggleLike(_ post: VKPost, in controller: UIViewController, completion: @escaping () -> Void) {
         var parameters = ["type": "post", "item_id": String(post.id)]
         if post.ownerId != 0 {
             parameters["owner_id"] = String(post.ownerId)
@@ -10,11 +10,17 @@ enum PostActions {
         let method = post.isLiked ? "likes.delete" : "likes.add"
 
         VKApiClient.shared.call(method, parameters) { result in
-            if case .success = result {
-                DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    // Локально обновляем счётчик только при успехе — иначе лента
+                    // разойдётся с сервером после первой неудачи.
                     post.likesCount = max(0, post.likesCount + (post.isLiked ? -1 : 1))
                     post.isLiked.toggle()
                     completion()
+                case .failure(let error):
+                    // Раньше ошибка игнорировалась: кнопка «молча» не работала.
+                    controller.presentAlert(title: "Не удалось изменить лайк", message: error.message)
                 }
             }
         }

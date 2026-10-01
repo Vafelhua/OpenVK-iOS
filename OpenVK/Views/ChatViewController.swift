@@ -35,9 +35,13 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
         buildComposer()
         table.register(MessageCell.self, forCellReuseIdentifier: MessageCell.reuseId)
         registerKeyboard()
+        table.keyboardDismissMode = .interactive
 
+        // Приход нового сообщения не должен прокручивать чат вниз,
+        // если пользователь читает историю выше.
         longPoll.onUpdate = { [weak self] in
-            self?.loadHistory(silent: true)
+            guard let self = self else { return }
+            self.loadHistory(silent: true)
         }
 
         load()
@@ -150,17 +154,44 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
             setLoading(messages.isEmpty)
         }
 
-        VKApiClient.shared.call("messages.getHistory", ["peer_id": String(peer.id), "count": "50"]) { [weak self] result in
+        // offset — догрузка старых сообщений при прокрутке вверх.
+        var parameters = ["peer_id": String(peer.id), "count": "50"]
+        if historyOffset > 0 {
+            parameters["offset"] = String(historyOffset)
+        }
+
+        VKApiClient.shared.call("messages.getHistory", parameters) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.setLoading(false)
                 switch result {
                 case .success(let value):
-                    let fresh = VKMessage.readList(value).sorted { $0.date < $1.date }
-                    self.messages = fresh
-                    self.showStatus(fresh.isEmpty ? "Сообщений пока нет" : nil)
+                    var fresh = VKMessage.readList(value).sorted { $0.date < $1.date }
+                    // Не выкидываем то, что уже показано: сервер отдаёт
+                    // пересекающиеся страницы при быстрых отправках.
+                    let known = Set(self.messages.map { $0.id })
+                    let existing = self.messages
+                    fresh = fresh.filter { known.contains($0.id) == false }
+                    guard fresh.isEmpty == false else {
+                        // Ответ пришёл целиком из уже загруженных сообщений:
+                        // это обычное состояние при Long Poll, не ошибка.
+                        self.setLoadingMore(false)
+                        self.updateScrollToBottomButton()
+                        return
+                    }
+                    self.messages = existing + fresh
+                    self.historyOffset += fresh.count
+                    self.showStatus(self.messages.isEmpty ? "Сообщений пока нет" : nil)
                     self.reload()
-                    self.scrollToBottom(animated: true)
+                    if self.isLoadingFirstPage {
+                        // Первая страница всегда открывается снизу.
+                        self.scrollToBottom(animated: silent == false)
+                        self.isLoadingFirstPage = false
+                    } else if self.isScrolledToBottom() {
+                        // Пользователь внизу — новое сообщение должно быть видно.
+                        self.scrollToBottom(animated: true)
+                    }
+                    self.updateScrollToBottomButton()
                 case .failure(let error):
                     if silent == false {
                         self.showError(error)
@@ -169,6 +200,14 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
             }
         }
     }
+
+    private func loadOlderMessages() {
+        guard isLoadingMore == false, isLoading == false, hasMoreHistory else { return }
+        setLoadingMore(true)
+        loadHistory(silent: true)
+    }
+
+    private var hasMoreHistory: Bool { return historyOffset > 0 && messages.count >= 10 }
 
     @objc private func sendTapped() {
         let text = (input.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -220,6 +259,33 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
         return cell
     }
 
+    override func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        // Догружаем историю, когда пользователь доскроллил до верха.
+        if indexPath.row == 0 { loadOlderMessages() }
+        super.tableView(tableView, willDisplay: cell, forRowAt: indexPath)
+    }
+
+    /// Кнопка «вниз» нужна, когда пользователь читает историю выше дна.
+    private func updateScrollToBottomButton() {
+        let isAtBottom = isScrolledToBottom()
+        scrollToBottomButton.isHidden = isAtBottom
+        if isAtBottom {
+            unreadBadge.isHidden = true
+            unreadCount = 0
+        } else {
+            unreadBadge.isHidden = unreadCount == 0
+            unreadBadge.text = " \(unreadCount) "
+        }
+    }
+
+    
+
+    private func isScrolledToBottom() -> Bool {
+        guard table.numberOfSections > 0, table.numberOfRows(inSection: 0) > 0 else { return true }
+        let visibleBottom = table.contentOffset.y + table.bounds.height - table.adjustedContentInset.bottom
+        return visibleBottom >= table.contentSize.height - 80
+    }
+
     private func scrollToBottom(animated: Bool) {
         guard messages.isEmpty == false else { return }
         let indexPath = IndexPath(row: messages.count - 1, section: 0)
@@ -229,6 +295,7 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
 
     override func reload() {
         table.reloadData()
+        updateScrollToBottomButton()
     }
 
     // MARK: - UITextViewDelegate

@@ -14,6 +14,9 @@ class WallScreenController: TableScreenController {
     private var groups: [Int: VKGroup] = [:]
     private var actionButtonGroups: [[UIButton]] = []
 
+    /// Сколько записей уже загружено — используется как `offset` для следующей страницы.
+    private var wallOffset = 0
+
     /// Владелец стены (сообщество передаёт отрицательный id).
     var wallOwnerId: Int { return 0 }
     var wallCount: String { return "20" }
@@ -22,6 +25,7 @@ class WallScreenController: TableScreenController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        paginationEnabled = true
 
         headerView.translatesAutoresizingMaskIntoConstraints = false
         headerView.backgroundColor = Theme.card
@@ -126,6 +130,14 @@ class WallScreenController: TableScreenController {
     }
 
     override func load() {
+        wallOffset = 0
+        loadWall()
+    }
+
+    /// Догрузка следующей страницы стены.
+    override func loadMore() {
+        guard isLoadingMore == false, isLoading == false, posts.isEmpty == false else { return }
+        setLoadingMore(true)
         loadWall()
     }
 
@@ -133,17 +145,39 @@ class WallScreenController: TableScreenController {
         setLoading(posts.isEmpty)
         showStatus(nil)
 
-        VKApiClient.shared.call("wall.get", ["owner_id": String(wallOwnerId), "count": wallCount]) { [weak self] result in
+        // Догрузка следующих страниц стены через offset.
+        var parameters = ["owner_id": String(wallOwnerId), "count": wallCount]
+        if wallOffset > 0 {
+            parameters["offset"] = String(wallOffset)
+        }
+
+        VKApiClient.shared.call("wall.get", parameters) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.setLoading(false)
                 switch result {
                 case .success(let value):
                     self.readProfilesAndGroups(value)
-                    self.posts = VKPost.readList(value)
+                    var fresh = VKPost.readList(value)
+                    if self.wallOffset > 0 {
+                        // При догрузке не дублируем записи первой страницы.
+                        let known = Set(self.posts.map { $0.id })
+                        fresh = fresh.filter { known.contains($0.id) == false }
+                        self.wallOffset += fresh.count
+                        self.posts = self.posts + fresh
+                        self.setLoadingMore(false)
+                    } else {
+                        self.wallOffset = fresh.count
+                        self.posts = fresh
+                    }
                     self.showStatus(self.posts.isEmpty ? "Записей пока нет" : nil)
                     self.reload()
+                    // Новые записи добавляем сверху списка.
+                    if self.wallOffset > self.posts.count, self.posts.isEmpty == false {
+                        self.table.setContentOffset(.zero, animated: false)
+                    }
                 case .failure(let error):
+                    self.setLoadingMore(false)
                     self.showError(error)
                 }
             }
@@ -184,8 +218,10 @@ class WallScreenController: TableScreenController {
         cell.configure(post: post, authorName: authorName(for: post), authorPhoto: authorPhoto(for: post))
 
         cell.onLike = { [weak self] in
-            PostActions.toggleLike(post) {
-                guard let self = self, let row = self.posts.identityIndex(of: post) else { return }
+            guard let self = self else { return }
+            PostActions.toggleLike(post, in: self) {
+                guard let row = self.posts.identityIndex(of: post),
+                      row < self.table.numberOfRows(inSection: 0) else { return }
                 self.table.reloadRows(at: [IndexPath(row: row, section: 0)], with: .none)
             }
         }

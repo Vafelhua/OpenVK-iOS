@@ -1,4 +1,4 @@
-import Foundation
+import UIKit
 
 /// Фотография из вложения.
 final class VKPhoto {
@@ -6,6 +6,9 @@ final class VKPhoto {
     let ownerId: Int
     var bigURL: String
     var smallURL: String
+    /// Размеры большой версии — нужны, чтобы не искажать пропорции при вёрстке.
+    var width: CGFloat = 0
+    var height: CGFloat = 0
 
     init?(dict: [String: Any]) {
         id = J.getInt(dict, "id", 0)
@@ -15,21 +18,37 @@ final class VKPhoto {
         if sizes.isEmpty == false {
             let preferred = ["x", "y", "z", "w", "m"]
             var chosen = ""
+            var chosenSize: [String: Any]?
             for type in preferred {
-                let match = sizes.first { item -> Bool in
-                    return J.getString(item, "type", "") == type
-                }
-                if let match = match {
+                if let match = sizes.first(where: { J.getString($0, "type", "") == type }) {
                     let url = J.getString(match, "url", "")
                     if url.isEmpty == false {
                         chosen = url
+                        chosenSize = match
                         break
                     }
                 }
             }
-            bigURL = chosen.isEmpty ? J.getString(sizes.last, "url", "") : chosen
-            let first = J.getString(sizes.first, "url", "")
-            smallURL = first.isEmpty ? bigURL : first
+            if chosen.isEmpty {
+                chosen = J.getString(sizes.last, "url", "")
+                chosenSize = sizes.last
+            }
+            bigURL = chosen
+
+            width = CGFloat(J.getInt(chosenSize, "width", 0))
+            height = CGFloat(J.getInt(chosenSize, "height", 0))
+
+            // Для превью берём первый размер покрупнее, а не самый мелкий.
+            let smallPreferred = ["m", "s", "n", "x"]
+            var small = ""
+            for type in smallPreferred {
+                if let match = sizes.first(where: { J.getString($0, "type", "") == type }) {
+                    small = J.getString(match, "url", "")
+                    if small.isEmpty == false { break }
+                }
+            }
+            if small.isEmpty { small = J.getString(sizes.first, "url", "") }
+            smallURL = small.isEmpty ? bigURL : small
         } else {
             var big = J.getString(dict, "photo_604", "")
             if big.isEmpty { big = J.getString(dict, "photo_807", "") }
@@ -39,9 +58,21 @@ final class VKPhoto {
             var small = J.getString(dict, "photo_130", "")
             if small.isEmpty { small = J.getString(dict, "photo_100", "") }
             smallURL = small.isEmpty ? big : small
+
+            width = CGFloat(J.getInt(dict, "width", 0))
+            height = CGFloat(J.getInt(dict, "height", 0))
         }
 
         guard bigURL.isEmpty == false else { return nil }
+    }
+
+    /// Доля высоты к ширине; при неизвестном размере — эвристика VK (широкие кадры).
+    var aspectRatio: CGFloat {
+        if width > 0, height > 0 {
+            let ratio = height / width
+            return min(max(ratio, 0.35), 2.4)
+        }
+        return 0.68
     }
 
     /// «photo-123_456» — формат вложения для wall.post.

@@ -1,6 +1,10 @@
 import UIKit
 
-/// Корневой экран авторизованного приложения: 7 вкладок, как в UWP-клиенте.
+/// Корневой экран авторизованного приложения.
+///
+/// Пять вкладок: при шести и более UITabBarController на iPhone/iPad
+/// прячет лишние иконки в системный «Ещё», что ломает навигацию.
+/// Друзья, группы, музыка и настройки доступны из профиля.
 final class MainTabBarController: UITabBarController {
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -10,12 +14,10 @@ final class MainTabBarController: UITabBarController {
         viewControllers = [
             wrap(NewsfeedViewController(), title: "Новости", glyph: "▦"),
             wrap(ConversationsViewController(), title: "Сообщения", glyph: "✉"),
-            wrap(FriendsViewController(), title: "Друзья", glyph: "☺"),
-            wrap(GroupsViewController(), title: "Группы", glyph: "☷"),
-            wrap(MusicViewController(), title: "Музыка", glyph: "♪"),
-            wrap(ProfileViewController(), title: "Профиль", glyph: "☰"),
+            wrap(ProfileViewController(), title: "Профиль", glyph: "☺"),
             wrap(SettingsViewController(), title: "Настройки", glyph: "⚙")
         ]
+        tabBar.isTranslucent = false
 
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(themeDidChange),

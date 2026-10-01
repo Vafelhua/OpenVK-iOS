@@ -1,9 +1,9 @@
 import Foundation
 
-/// РўРѕР»РµСЂР°РЅС‚РЅС‹Рµ Рє С‚РёРїР°Рј РїРѕРјРѕС‰РЅРёРєРё С‡С‚РµРЅРёСЏ JSON.
+/// Толерантные к типам помощники чтения JSON.
 ///
-/// OpenVK/VK РѕС‚РґР°СЋС‚ СЃРјРµС€Р°РЅРЅС‹Рµ С‚РёРїС‹: С‡РёСЃР»Р° РїСЂРёС…РѕРґСЏС‚ СЃС‚СЂРѕРєР°РјРё, С„Р»Р°РіРё вЂ” 0/1,
-/// Р° `fields`-РѕР±СЉРµРєС‚С‹ РјРѕРіСѓС‚ Р±С‹С‚СЊ РєР°Рє РѕР±СЉРµРєС‚РѕРј, С‚Р°Рє Рё РјР°СЃСЃРёРІРѕРј РёР· РѕРґРЅРѕРіРѕ СЌР»РµРјРµРЅС‚Р°.
+/// OpenVK/VK отдают смешанные типы: числа приходят строками, флаги — 0/1,
+/// а `fields`-объекты могут быть как объектом, так и массивом из одного элемента.
 enum J {
     static func dict(_ container: Any?) -> [String: Any]? {
         if let value = container as? [String: Any] { return value }
@@ -15,7 +15,7 @@ enum J {
         return value as? [Any]
     }
 
-    /// РЎРїРёСЃРѕРє СЌР»РµРјРµРЅС‚РѕРІ РѕС‚РІРµС‚Р°: `{"items":[вЂ¦]}`, `{"response":[вЂ¦]}` РёР»Рё В«РіРѕР»С‹Р№В» РјР°СЃСЃРёРІ.
+    /// Список элементов ответа: `{"items":[…]}`, `{"response":[…]}` или «голый» массив.
     static func items(_ result: Any?) -> [Any] {
         if let array = result as? [Any] { return array }
         guard let object = dict(result) else { return [] }
@@ -73,7 +73,7 @@ enum J {
         return toDouble(value) ?? fallback
     }
 
-    // MARK: - Р—РЅР°С‡РµРЅРёСЏ
+    // MARK: - Значения
 
     static func toInt(_ value: Any?) -> Int? {
         if let number = value as? NSNumber { return number.intValue }

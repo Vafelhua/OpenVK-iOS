@@ -173,13 +173,18 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         pendingImageData = data
 
         let view = RemoteImageView(cornerRadius: 4)
-        view.setRemote(nil)
         view.image = image
         view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             view.widthAnchor.constraint(equalToConstant: 56),
             view.heightAnchor.constraint(equalToConstant: 56)
         ])
+        // Повторный выбор заменяет превью, а не добавляет второе:
+        // иначе в композере накапливались дубли одного и того же фото.
+        previewStack.arrangedSubviews.forEach { existing in
+            previewStack.removeArrangedSubview(existing)
+            existing.removeFromSuperview()
+        }
         previewStack.addArrangedSubview(view)
         previewImage = view
         previewHeight.constant = 56
@@ -239,8 +244,14 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         }
 
         publishButton.isEnabled = false
-        uploadPhotoIfNeeded { [weak self] in
+        uploadPhotoIfNeeded { [weak self] didUpload in
+            // completion вызывается и при ошибке загрузки — иначе кнопка
+            // публикации навсегда оставалась disabled.
             guard let self = self else { return }
+            guard didUpload else {
+                self.publishButton.isEnabled = true
+                return
+            }
             var parameters = ["owner_id": String(LocalSettings.shared.userId),
                               "message": message]
             if self.attachments.isEmpty == false {
@@ -262,9 +273,11 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
     }
 
     /// photos.getWallUploadServer → upload → photos.saveWallPhoto.
-    private func uploadPhotoIfNeeded(completion: @escaping () -> Void) {
+    /// `completion(true)` — фото загружено, можно публиковать;
+    /// `completion(false)` — загрузка сорвалась, о выходе сообщено пользователю.
+    private func uploadPhotoIfNeeded(completion: @escaping (Bool) -> Void) {
         guard let data = pendingImageData else {
-            completion()
+            completion(true)
             return
         }
 
@@ -275,6 +288,7 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
                 let uploadURL = J.getString(value, "upload_url", "")
                 guard uploadURL.isEmpty == false else {
                     self.presentAlert(title: "Ошибка", message: "Сервер не вернул адрес загрузки фото.")
+                    completion(false)
                     return
                 }
                 VKApiClient.shared.upload(uploadURL, data: data, fieldName: "photo", fileName: "photo.jpg") { uploadResult in
@@ -283,15 +297,17 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
                         self.saveWallPhoto(payload, completion: completion)
                     case .failure(let error):
                         self.presentAlert(title: "Ошибка", message: error.message)
+                        completion(false)
                     }
                 }
             case .failure(let error):
                 self.presentAlert(title: "Ошибка", message: error.message)
+                completion(false)
             }
         }
     }
 
-    private func saveWallPhoto(_ uploadResult: [String: Any], completion: @escaping () -> Void) {
+    private func saveWallPhoto(_ uploadResult: [String: Any], completion: @escaping (Bool) -> Void) {
         let parameters = [
             "server": J.getString(uploadResult, "server", ""),
             "photo": J.getString(uploadResult, "photo", ""),
@@ -306,12 +322,14 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
                 let id = J.getInt(photo, "id", 0)
                 if id != 0 {
                     self.attachments.append("photo\(ownerId)_\(id)")
-                    completion()
+                    completion(true)
                 } else {
                     self.presentAlert(title: "Ошибка", message: "Сервер не вернул идентификатор фото.")
+                    completion(false)
                 }
             case .failure(let error):
                 self.presentAlert(title: "Ошибка", message: error.message)
+                completion(false)
             }
         }
     }

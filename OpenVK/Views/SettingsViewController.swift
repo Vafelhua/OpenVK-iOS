@@ -102,6 +102,18 @@ final class SettingsViewController: UIViewController {
         stack.addArrangedSubview(hintContainer)
         stack.addArrangedSubview(makeSeparator(inset: 0))
 
+        // Переходы к экранам, убранным из таб-бара ради лимита в 5 вкладок.
+        stack.addArrangedSubview(makeSectionTitle("Разделы"))
+        stack.addArrangedSubview(makeNavigationRow(title: "Друзья", glyph: "☺",
+                                                   action: #selector(openFriends)))
+        stack.addArrangedSubview(makeSeparator())
+        stack.addArrangedSubview(makeNavigationRow(title: "Группы", glyph: "☷",
+                                                   action: #selector(openGroups)))
+        stack.addArrangedSubview(makeSeparator())
+        stack.addArrangedSubview(makeNavigationRow(title: "Музыка", glyph: "♪",
+                                                   action: #selector(openMusic)))
+        stack.addArrangedSubview(makeSeparator(inset: 0))
+
         // Выход
         logoutButton.setTitle("Выйти из аккаунта", for: .normal)
         logoutButton.setTitleColor(Theme.logout, for: .normal)
@@ -147,6 +159,27 @@ final class SettingsViewController: UIViewController {
     }
 
     // MARK: - Элементы
+
+    /// Строка-переход к экрану, который не поместился в таб-бар.
+    private func makeNavigationRow(title: String, glyph: String, action: Selector) -> UIView {
+        let row = makeRow(title: nil)
+        let button = UIButton(type: .system)
+        button.setTitle(" \(glyph)   \(title)", for: .normal)
+        button.setTitleColor(Theme.textPrimary, for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 16)
+        button.contentHorizontalAlignment = .left
+        button.addTarget(self, action: action, for: .touchUpInside)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        row.addSubview(button)
+        NSLayoutConstraint.activate([
+            button.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 16),
+            button.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -16),
+            button.topAnchor.constraint(equalTo: row.topAnchor),
+            button.bottomAnchor.constraint(equalTo: row.bottomAnchor),
+            row.heightAnchor.constraint(equalToConstant: 52)
+        ])
+        return row
+    }
 
     private func makeRow(title: String?) -> UIView {
         let row = UIView()
@@ -227,6 +260,27 @@ final class SettingsViewController: UIViewController {
             AppDelegate.shared.signOut()
         })
         present(alert, animated: true, completion: nil)
+    }
+
+    /// Обёртка раздела в навигационный контроллер с теми же стилями, что у вкладок.
+    private func push(_ controller: UIViewController, title: String) {
+        controller.title = title
+        let navigation = UINavigationController(rootViewController: controller)
+        navigation.navigationBar.isTranslucent = false
+        Theme.styleNavigationBar(navigation.navigationBar)
+        navigationController?.pushViewController(navigation, animated: true)
+    }
+
+    @objc private func openFriends() {
+        push(FriendsViewController(), title: "Друзья")
+    }
+
+    @objc private func openGroups() {
+        push(GroupsViewController(), title: "Группы")
+    }
+
+    @objc private func openMusic() {
+        push(MusicViewController(), title: "Музыка")
     }
 
     @objc private func logout() {

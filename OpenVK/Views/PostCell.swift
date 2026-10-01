@@ -46,6 +46,10 @@ final class PostCell: UITableViewCell {
         authorLabel.addGestureRecognizer(authorTap)
         authorLabel.isUserInteractionEnabled = true
 
+        // Тап по фото открывает его во весь экран.
+        photoView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(photoTapped)))
+        photoView.isUserInteractionEnabled = true
+
         let actionStack = UIStackView(arrangedSubviews: [likeButton, commentButton, repostButton])
         actionStack.axis = .horizontal
         actionStack.distribution = .fillEqually
@@ -138,7 +142,10 @@ final class PostCell: UITableViewCell {
         if let photo = post.photo {
             photoView.isHidden = false
             photoView.setRemote(photo.bigURL, placeholder: Theme.divider)
-            photoHeight.constant = 240
+            // Высота по реальным пропорциям снимка, а не константа 240:
+            // вертикальные фото больше не обрезаются по неправильно.
+            let width = UIScreen.main.bounds.width - 24
+            photoHeight.constant = max(120, (width * photo.aspectRatio).rounded())
         } else {
             photoView.isHidden = true
             photoView.clear()
@@ -166,6 +173,10 @@ final class PostCell: UITableViewCell {
     // MARK: - Действия
 
     @objc private func likeTapped() { onLike?() }
+    @objc private func photoTapped() {
+        guard let url = photoView.remoteURL, url.isEmpty == false else { return }
+        PhotoViewer.present(url: url)
+    }
     @objc private func commentTapped() { onComment?() }
     @objc private func repostTapped() { onRepost?() }
     @objc private func authorTapped() { onAuthor?() }

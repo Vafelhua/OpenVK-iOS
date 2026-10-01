@@ -57,17 +57,18 @@ final class ConversationCell: UITableViewCell {
 
             textStack.leadingAnchor.constraint(equalTo: avatarView.trailingAnchor, constant: 12),
             textStack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 13),
-            textStack.trailingAnchor.constraint(lessThanOrEqualTo: photoView.leadingAnchor, constant: -8),
             textStack.trailingAnchor.constraint(lessThanOrEqualTo: timeLabel.leadingAnchor, constant: -8),
             textStack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -13),
 
-            timeLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            timeLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 14),
-
-            photoView.leadingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16 - 40),
+            // Фото прижато к правому краю, время — перед ним. Когда фото нет,
+            // его ширина 0 и время автоматически занимает это место.
+            photoView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
             photoView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
             photoWidth!,
             photoView.heightAnchor.constraint(equalToConstant: 40),
+
+            timeLabel.trailingAnchor.constraint(equalTo: photoView.leadingAnchor, constant: -8),
+            timeLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 14),
 
             separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 72),
             separator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),

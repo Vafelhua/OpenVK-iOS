@@ -15,6 +15,15 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
     private let player = AVPlayer()
     private var currentTrack: VKAudio?
 
+    /// Наблюдатели AVPlayer: `timeControlStatus` меняется асинхронно,
+    /// поэтому опрашивать его сразу после `play()` бессмысленно —
+    /// кнопка «зависала» в состоянии «пауза».
+    private var timeControlObserver: NSKeyValueObservation?
+    private var itemStatusObserver: NSKeyValueObservation?
+    private var statusObservation: NSKeyValueObservation?
+    private var endObserver: NSObjectProtocol?
+    private var progressTimer: Timer?
+
     override var itemsCount: Int { return tracks.count }
 
     override func viewDidLoad() {
@@ -33,12 +42,46 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
 
         buildPlayerBar()
         configureAudioSession()
+        observePlayer()
         load()
+    }
+
+    deinit {
+        stopObservingPlayer()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        player.pause()
+        // Не останавливаем музыку при переходе на другой экран —
+        // иначе сворачивание приложения прерывало трек.
+    }
+
+    private func observePlayer() {
+        stopObservingPlayer()
+        timeControlObserver = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.updatePlayButton() }
+        }
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(playerItemEnded),
+                                               name: .AVPlayerItemDidPlayToEndTime,
+                                               object: nil)
+    }
+
+    private func stopObservingPlayer() {
+        timeControlObserver = nil
+        itemStatusObserver = nil
+        statusObservation = nil
+        progressTimer?.invalidate()
+        progressTimer = nil
+        if let endObserver = endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+            self.endObserver = nil
+        }
+    }
+
+    /// По завершении трека показываем ▶ вместо «паузы» на остановленном плеере.
+    @objc private func playerItemEnded() {
+        updatePlayButton()
     }
 
     private func configureAudioSession() {
@@ -123,9 +166,26 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         }
 
         guard let finalURL = URL(string: urlString) else { return }
-        player.replaceCurrentItem(with: AVPlayerItem(url: finalURL))
+
+        let item = AVPlayerItem(url: finalURL)
+        // Если поток недоступен, AVPlayerItem молча падает в .failed —
+        // без этой проверки трек просто не играл без объяснения.
+        statusObservation = item.observe(\.status, options: [.new]) { [weak self] observed, _ in
+            guard observed.status == .failed else { return }
+            let message = observed.error?.localizedDescription ?? "Не удалось загрузить трек."
+            DispatchQueue.main.async {
+                self?.playButton.isEnabled = false
+                self?.presentAlert(title: "Недоступно", message: message)
+            }
+        }
+        itemStatusObserver = item.observe(\.duration, options: [.new]) { [weak self] observed, _ in
+            DispatchQueue.main.async { self?.applyDuration(observed.duration) }
+        }
+
+        player.replaceCurrentItem(with: item)
         player.play()
         updatePlayButton()
+        startProgressTimer()
     }
 
     @objc private func togglePlayback() {
@@ -133,15 +193,51 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         if player.timeControlStatus == .playing {
             player.pause()
         } else {
+            // Досматриваем трек с начала, если он уже закончился.
+            if let item = player.currentItem, item.duration.isNumeric,
+               CMTimeGetSeconds(item.duration) > 0,
+               CMTimeGetSeconds(player.currentTime()) >= CMTimeGetSeconds(item.duration) - 0.5 {
+                player.seek(to: .zero)
+            }
             player.play()
         }
-        updatePlayButton()
+        // Состояние кнопки обновит наблюдатель timeControlStatus.
     }
 
     private func updatePlayButton() {
-        let glyph = player.timeControlStatus == .playing ? "❙❙" : "▶"
+        let playing = player.timeControlStatus == .playing
+        let glyph = playing ? "❙❙" : "▶"
         playButton.setImage(UIFactory.icon(glyph, size: 18), for: .normal)
-        playButton.tintColor = .white
+        playButton.tintColor = Theme.accent
+        playButton.setTitle(playerTimeText(), for: .normal)
+        playButton.titleLabel?.font = UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        playButton.setTitleColor(Theme.textSecondary, for: .normal)
+    }
+
+    private func playerTimeText() -> String? {
+        guard let duration = player.currentItem?.duration, duration.isNumeric else { return nil }
+        let total = Int(CMTimeGetSeconds(duration))
+        guard total > 0 else { return nil }
+        let current = Int(max(0, CMTimeGetSeconds(player.currentTime())))
+        return String(format: "%d:%02d / %d:%02d", current / 60, current % 60, total / 60, total % 60)
+    }
+
+    private func applyDuration(_ duration: CMTime) {
+        guard duration.isNumeric, CMTimeGetSeconds(duration) > 0 else { return }
+        guard playerTimeText() == nil else { return }
+        let total = Int(CMTimeGetSeconds(duration))
+        updatePlayButton()
+        playerTitle.text = currentTrack.map { "\($0.displayName) · \(total / 60):\(String(format: "%02d", total % 60))" }
+    }
+
+    private func startProgressTimer() {
+        progressTimer?.invalidate()
+        // Тик раз в секунду только на время показа панели плеера.
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async { self?.updatePlayButton() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        progressTimer = timer
     }
 
     @objc private func closePlayer() {
@@ -150,6 +246,10 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         currentTrack = nil
         playerTitle.text = nil
         playerHeight.constant = 0
+        statusObservation = nil
+        itemStatusObserver = nil
+        progressTimer?.invalidate()
+        progressTimer = nil
     }
 
     // MARK: - Данные
@@ -184,20 +284,37 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
 
     func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
         searchBar.resignFirstResponder()
-        runSearch(searchBar.text ?? "")
+        searchDebounce?.cancel()
+        performSearch((searchBar.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
+    /// Отложенный старт поиска: без паузы каждый символ порождал запрос.
+    private var searchDebounce: DispatchWorkItem?
+    private var searchGeneration = 0
+
     private func runSearch(_ query: String) {
+        searchDebounce?.cancel()
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.isEmpty == false else {
+            searchGeneration += 1
+            VKApiClient.shared.cancel("music.search")
             load()
             return
         }
+        let work = DispatchWorkItem { [weak self] in self?.performSearch(text) }
+        searchDebounce = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
+    }
 
+    private func performSearch(_ text: String) {
+        searchGeneration += 1
+        let generation = searchGeneration
         setLoading(tracks.isEmpty)
-        VKApiClient.shared.call("audio.search", ["q": text, "count": "50"]) { [weak self] result in
+        VKApiClient.shared.call("audio.search",
+                                ["q": text, "count": "50"],
+                                cancelKey: "music.search") { [weak self] result in
             DispatchQueue.main.async {
-                guard let self = self else { return }
+                guard let self = self, self.searchGeneration == generation else { return }
                 self.setLoading(false)
                 switch result {
                 case .success(let value):

@@ -16,9 +16,24 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         window.backgroundColor = Theme.background
         self.window = window
 
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(authExpired),
+                                               name: .openVKAuthExpired,
+                                               object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(handleMemoryWarning),
+                                               name: UIApplication.didReceiveMemoryWarningNotification,
+                                               object: nil)
+
         showRoot(animated: false)
         return true
     }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    // MARK: - Корневой экран
 
     func showRoot(animated: Bool) {
         let root: UIViewController = LocalSettings.shared.tokenPresent
@@ -33,11 +48,28 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func signIn() {
+        VKApiClient.shared.resetAuthExpiredFlag()
         showRoot(animated: true)
     }
 
     func signOut() {
         LocalSettings.shared.clearCredentials()
         showRoot(animated: true)
+    }
+
+    // MARK: - Реакции на события
+
+    /// Токен протух: чистим учётные данные и объясняем пользователю причину
+    /// на экране входа, который `showRoot` только что поставил.
+    @objc private func authExpired(_ note: Notification) {
+        let reason = (note.object as? VKError)?.message ?? "Сессия истекла."
+        LocalSettings.shared.clearCredentials()
+        showRoot(animated: false)
+
+        (window?.rootViewController as? LoginViewController)?.showSessionExpired(reason)
+    }
+
+    @objc private func handleMemoryWarning() {
+        ImageLoader.shared.purgeMemory()
     }
 }
