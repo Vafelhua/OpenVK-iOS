@@ -178,7 +178,7 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
         textViewDidChange(input)
         sendButton.isEnabled = false
 
-        let random = String(arc4random_uniform(Int32(Int.max)))
+        let random = String(arc4random_uniform(UInt32.random(in: 1...UInt32(Int.max))))
         VKApiClient.shared.call("messages.send", ["peer_id": String(peer.id),
                                                   "message": text,
                                                   "random_id": random]) { [weak self] result in

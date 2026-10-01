@@ -57,14 +57,11 @@ enum Theme {
         bar.tintColor = accent
         bar.isTranslucent = false
         bar.shadowImage = makeDividerImage()
-        bar.titleTextAttributes = [
+        let attributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: textPrimary,
             .font: UIFont.boldSystemFont(ofSize: 17)
         ]
-        bar.setTitleTextAttributes([
-            .foregroundColor: textPrimary,
-            .font: UIFont.boldSystemFont(ofSize: 17)
-        ], for: .normal)
+        bar.titleTextAttributes = attributes
     }
 
     static func styleTabBar(_ bar: UITabBar) {

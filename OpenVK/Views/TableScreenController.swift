@@ -109,10 +109,6 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
         }
     }
 
-    func presentAlert(title: String, message: String) {
-        present(UIFactory.alert(title: title, message: message), animated: true)
-    }
-
     @objc private func handleRefresh() {
         setLoading(false)
         load()
@@ -165,5 +161,11 @@ extension Array where Element: AnyObject {
     /// Индекс элемента по идентичности — для моделей, не наследующих Equatable.
     func identityIndex(of object: Element) -> Int? {
         return firstIndex(where: { $0 === object })
+    }
+}
+extension UIViewController {
+    /// Показать модальный алерт с заголовком и текстом.
+    func presentAlert(title: String, message: String) {
+        present(UIFactory.alert(title: title, message: message), animated: true)
     }
 }

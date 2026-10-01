@@ -13,7 +13,7 @@ final class PostCell: UITableViewCell {
     private let avatarView = UIFactory.avatar(40)
     private let authorLabel = UIFactory.label("", size: 15, weight: .semibold)
     private let timeLabel = UIFactory.label("", size: 12, color: Theme.textSecondary)
-    private let textLabel = UIFactory.label("", size: 15)
+    private let postLabel = UIFactory.label("", size: 15)
     private let photoView = RemoteImageView()
     private let separator = UIView()
 
@@ -56,7 +56,7 @@ final class PostCell: UITableViewCell {
         counts.distribution = .fillEqually
 
         let stack = UIStackView(arrangedSubviews: [
-            textLabel, photoView, actionStack, counts, separator
+            postLabel, photoView, actionStack, counts, separator
         ])
         stack.axis = .vertical
         stack.spacing = 8
@@ -106,7 +106,7 @@ final class PostCell: UITableViewCell {
         super.prepareForReuse()
         avatarView.clear()
         photoView.clear()
-        textLabel.text = nil
+        postLabel.text = nil
         onLike = nil
         onComment = nil
         onRepost = nil
@@ -126,8 +126,8 @@ final class PostCell: UITableViewCell {
 
         authorLabel.text = authorName
         timeLabel.text = TimeHelper.relative(post.date)
-        textLabel.text = post.text
-        textLabel.isHidden = post.text.isEmpty
+        postLabel.text = post.text
+        postLabel.isHidden = post.text.isEmpty
         avatarView.setRemote(authorPhoto)
 
         likeButton.setTitle(liked ? " ♥ Нравится" : " ♡ Нравится", for: .normal)
@@ -152,7 +152,7 @@ final class PostCell: UITableViewCell {
         card.backgroundColor = Theme.card
         contentView.backgroundColor = Theme.background
         authorLabel.textColor = Theme.textPrimary
-        textLabel.textColor = Theme.textPrimary
+        postLabel.textColor = Theme.textPrimary
         timeLabel.textColor = Theme.textSecondary
         likeCountLabel.textColor = Theme.textSecondary
         commentCountLabel.textColor = Theme.textSecondary

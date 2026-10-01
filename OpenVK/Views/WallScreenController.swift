@@ -239,7 +239,7 @@ class WallScreenController: TableScreenController {
     /// Перекрашивает подписи шапки: вторичные помечены тегом.
     private func recolorLabels(in view: UIView) {
         if let label = view as? UILabel {
-            label.textColor = (label.tag == secondaryLabelTag) ? Theme.textSecondary : Theme.textPrimary
+            label.textColor = (label.tag == WallScreenController.secondaryLabelTag) ? Theme.textSecondary : Theme.textPrimary
             return
         }
         for subview in view.subviews {

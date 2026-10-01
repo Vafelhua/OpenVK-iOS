@@ -41,6 +41,11 @@ final class ConversationCell: UITableViewCell {
 
         photoWidth = photoView.widthAnchor.constraint(equalToConstant: 40)
 
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        messageLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        timeLabel.setContentHuggingPriority(.required, for: .horizontal)
+        timeLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+
         NSLayoutConstraint.activate([
             avatarView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
             avatarView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
@@ -55,11 +60,6 @@ final class ConversationCell: UITableViewCell {
             textStack.trailingAnchor.constraint(lessThanOrEqualTo: photoView.leadingAnchor, constant: -8),
             textStack.trailingAnchor.constraint(lessThanOrEqualTo: timeLabel.leadingAnchor, constant: -8),
             textStack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -13),
-
-            titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal),
-            messageLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal),
-            timeLabel.setContentHuggingPriority(.required, for: .horizontal),
-            timeLabel.setContentCompressionResistancePriority(.required, for: .horizontal),
 
             timeLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
             timeLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 14),

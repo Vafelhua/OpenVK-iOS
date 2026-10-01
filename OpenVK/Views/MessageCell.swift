@@ -5,7 +5,7 @@ final class MessageCell: UITableViewCell {
     static let reuseId = "MessageCell"
 
     private let bubble = UIView()
-    private let textLabel = UIFactory.label("", size: 15)
+    private let bubbleLabel = UIFactory.label("", size: 15)
     private let timeLabel = UIFactory.label("", size: 11, color: Theme.textSecondary)
     private let photoView = RemoteImageView()
 
@@ -22,7 +22,7 @@ final class MessageCell: UITableViewCell {
         photoView.translatesAutoresizingMaskIntoConstraints = false
         photoView.contentMode = .scaleAspectFill
 
-        let textStack = UIStackView(arrangedSubviews: [textLabel])
+        let textStack = UIStackView(arrangedSubviews: [bubbleLabel])
         textStack.axis = .vertical
         textStack.spacing = 4
         textStack.translatesAutoresizingMaskIntoConstraints = false
@@ -63,12 +63,12 @@ final class MessageCell: UITableViewCell {
     override func prepareForReuse() {
         super.prepareForReuse()
         photoView.clear()
-        textLabel.text = nil
+        bubbleLabel.text = nil
     }
 
     func configure(message: VKMessage) {
-        textLabel.text = message.text
-        textLabel.isHidden = message.text.isEmpty
+        bubbleLabel.text = message.text
+        bubbleLabel.isHidden = message.text.isEmpty
         timeLabel.text = TimeHelper.clock(message.date)
 
         if let photo = message.photo {
@@ -86,11 +86,11 @@ final class MessageCell: UITableViewCell {
 
         if message.isOutgoing {
             bubble.backgroundColor = Theme.outgoing
-            textLabel.textColor = .white
+            bubbleLabel.textColor = .white
             timeLabel.textColor = UIColor.white.withAlphaComponent(0.75)
         } else {
             bubble.backgroundColor = Theme.incoming
-            textLabel.textColor = Theme.incomingText
+            bubbleLabel.textColor = Theme.incomingText
             timeLabel.textColor = Theme.textSecondary
         }
     }

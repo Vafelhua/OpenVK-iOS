@@ -24,9 +24,10 @@ final class CommentsViewController: TableScreenController {
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Комментарии"
-        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .close,
+        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Закрыть",
+                                                           style: .plain,
                                                            target: self,
-                                                           action: #selector(close))
+                                                           action: #selector(closeTapped))
         buildComposer()
         load()
     }
@@ -107,7 +108,7 @@ final class CommentsViewController: TableScreenController {
         }
     }
 
-    @objc private func close() {
+    @objc private func closeTapped() {
         dismiss(animated: true, completion: nil)
     }
 
@@ -177,7 +178,7 @@ final class CommentsViewController: TableScreenController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let comment = comments[indexPath.row]
         let cell = table.dequeueReusableCell(withIdentifier: MemberCell.reuseId, for: indexPath) as! MemberCell
-        cell.configure(title: comment.text, subtitle: comment.subtitle, photo: comment.photoURL)
+        cell.configure(title: comment.text, subtitle: comment.subtitle, photo: comment.authorPhoto)
         return cell
     }
 
@@ -214,7 +215,7 @@ struct VKComment {
         let profiles = VKUser.readList(result)
         let groups = VKGroup.readList(result)
 
-        return J.items(result).compactMap { element in
+        return J.items(result).compactMap { element -> VKComment? in
             guard let dict = element as? [String: Any] else { return nil }
             let text = J.getString(dict, "text", "")
             let fromId = J.getInt(dict, "from_id", 0)
