@@ -110,7 +110,7 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         playerTitle.text = track.displayName
         playerHeight.constant = 54
 
-        guard var urlString = track.url, let url = URL(string: urlString) as URL? else {
+        guard var urlString = track.url as String?, let url = URL(string: urlString) else {
             presentAlert(title: "Недоступно", message: "Сервер не вернул ссылку на трек.")
             return
         }

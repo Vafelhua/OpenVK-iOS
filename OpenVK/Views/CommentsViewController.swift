@@ -219,11 +219,13 @@ struct VKComment {
             guard let dict = element as? [String: Any] else { return nil }
             let text = J.getString(dict, "text", "")
             let fromId = J.getInt(dict, "from_id", 0)
-            let author = profiles.first(where: { $0.id == fromId })
-                ?? groups.first(where: { $0.id == abs(fromId) })
+            let user = profiles.first(where: { $0.id == fromId })
+            let group = groups.first(where: { $0.id == abs(fromId) })
+            let authorName = user?.name ?? group?.name ?? "OpenVK"
+            let authorPhoto = user?.photoMax ?? group?.photoMax
             return VKComment(text: text,
-                             authorName: author?.name ?? "OpenVK",
-                             authorPhoto: author?.photoMax,
+                             authorName: authorName,
+                             authorPhoto: authorPhoto,
                              date: J.getInt(dict, "date", 0))
         }
     }

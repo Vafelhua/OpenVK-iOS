@@ -189,8 +189,8 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
                 case .success:
                     self.loadHistory(silent: true)
                 case .failure(let error):
-                    input.text = text
-                    self.textViewDidChange(input)
+                    self.input.text = text
+                    self.textViewDidChange(self.input)
                     self.presentAlert(title: "Не отправлено", message: error.message)
                 }
             }

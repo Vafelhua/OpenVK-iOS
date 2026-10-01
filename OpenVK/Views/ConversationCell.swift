@@ -90,8 +90,14 @@ final class ConversationCell: UITableViewCell {
     }
 
     func setPhoto(_ url: String?) {
-        photoWidth?.constant = (url?.isEmpty == false) ? 40 : 0
-        photoView.isHidden = (url?.isEmpty != false)
+        let hasPhoto = (url?.isEmpty == false)
+        photoWidth?.constant = hasPhoto ? 40 : 0
+        photoView.isHidden = !hasPhoto
+        if hasPhoto {
+            photoView.setRemote(url, placeholder: Theme.divider)
+        } else {
+            photoView.clear()
+        }
     }
 
     var titleText: String? {
