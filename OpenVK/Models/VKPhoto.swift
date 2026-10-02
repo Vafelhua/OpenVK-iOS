@@ -20,7 +20,8 @@ final class VKPhoto {
             var chosen = ""
             var chosenSize: [String: Any]?
             for type in preferred {
-                if let match = sizes.first(where: { J.getString($0, "type", "") == type }) {
+                if let raw = sizes.first(where: { J.getString($0, "type", "") == type }),
+                   let match = J.dict(raw) {
                     let url = J.getString(match, "url", "")
                     if url.isEmpty == false {
                         chosen = url
@@ -31,7 +32,7 @@ final class VKPhoto {
             }
             if chosen.isEmpty {
                 chosen = J.getString(sizes.last, "url", "")
-                chosenSize = sizes.last
+                chosenSize = J.dict(sizes.last)
             }
             bigURL = chosen
 

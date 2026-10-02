@@ -166,7 +166,7 @@ final class VKApiClient {
                 fileName: String,
                 completion: @escaping (Result<[String: Any], VKError>) -> Void) {
         guard let url = URL(string: uploadURL) else {
-            deliver(.failure(VKError(code: 0, message: "Нет адреса загрузки")), completion: completion)
+            deliverDict(.failure(VKError(code: 0, message: "Нет адреса загрузки")), completion: completion)
             return
         }
         let boundary = "OpenVKBoundary" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
@@ -189,25 +189,25 @@ final class VKApiClient {
             guard let self = self else { return }
             if let error = error {
                 if (error as NSError).code == NSURLErrorCancelled { return }
-                self.deliver(.failure(VKError(code: 0,
-                                              message: "Не удалось загрузить файл: \(error.localizedDescription)")),
-                             completion: completion)
+                self.deliverDict(.failure(VKError(code: 0,
+                                                  message: "Не удалось загрузить файл: \(error.localizedDescription)")),
+                                 completion: completion)
                 return
             }
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                self.deliver(.failure(VKError(code: 0,
-                                              message: "Загрузка отклонена сервером (HTTP \(http.statusCode)).")),
-                             completion: completion)
+                self.deliverDict(.failure(VKError(code: 0,
+                                                  message: "Загрузка отклонена сервером (HTTP \(http.statusCode)).")),
+                                 completion: completion)
                 return
             }
             guard let data = data,
                 let json = try? JSONSerialization.jsonObject(with: data, options: [.allowFragments]),
                 let dict = J.dict(json) else {
-                self.deliver(.failure(VKError(code: 0, message: "Некорректный ответ при загрузке файла")),
-                             completion: completion)
+                self.deliverDict(.failure(VKError(code: 0, message: "Некорректный ответ при загрузке файла")),
+                                 completion: completion)
                 return
             }
-            self.deliver(.success(dict), completion: completion)
+            self.deliverDict(.success(dict), completion: completion)
         }.resume()
     }
 
@@ -245,6 +245,19 @@ final class VKApiClient {
             notifyAuthExpiredOnce(error)
         }
         DispatchQueue.main.async { completion(result) }
+    }
+
+    /// Вариант `deliver` для загрузки файлов: ответ заведомо JSON-объект,
+    /// поэтому колбэк сразу типизирован словарём.
+    private func deliverDict(_ result: Result<[String: Any], VKError>,
+                             completion: @escaping (Result<[String: Any], VKError>) -> Void) {
+        switch result {
+        case .success(let value):
+            DispatchQueue.main.async { completion(.success(value)) }
+        case .failure(let error):
+            if error.isAuthExpired { notifyAuthExpiredOnce(error) }
+            DispatchQueue.main.async { completion(.failure(error)) }
+        }
     }
 
     private var authExpiredNotified = false
