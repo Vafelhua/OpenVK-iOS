@@ -11,13 +11,25 @@ final class ConversationsViewController: TableScreenController {
 
     override var itemsCount: Int { return conversations.count }
 
+    private lazy var composeButton = UIBarButtonItem(barButtonSystemItem: .compose,
+                                                     target: self,
+                                                     action: #selector(composeTapped))
+
     override func viewDidLoad() {
         super.viewDidLoad()
         paginationEnabled = true
+        navigationItem.leftBarButtonItem = composeButton
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .refresh,
                                                             target: self,
                                                             action: #selector(refreshTapped))
         load()
+    }
+
+    /// Новое личное сообщение: список друзей, выбор открывает диалог.
+    @objc private func composeTapped() {
+        let picker = FriendsViewController()
+        picker.pickerMode = true
+        navigationController?.pushViewController(picker, animated: true)
     }
 
     override func viewWillAppear(_ animated: Bool) {

@@ -11,8 +11,10 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
     private let photoButton = UIButton(type: .system)
     private let audioButton = UIButton(type: .system)
     private let previewStack = UIStackView()
+    private let composeButton = UIButton(type: .system)
     private var composerBottom: NSLayoutConstraint!
     private var previewHeight: NSLayoutConstraint!
+    private var isComposerVisible = true
 
     private var attachments: [String] = []
     private var pendingImageData: Data?
@@ -28,8 +30,17 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         parts.title.text = "Моя страница"
         parts.subtitle.text = "id\(LocalSettings.shared.userId)"
 
+        let infoItem = UIBarButtonItem(title: "Инфо", style: .plain, target: self, action: #selector(openInfo))
+        navigationItem.rightBarButtonItems = [infoItem, navigationItem.rightBarButtonItem].compactMap { $0 }
+
         loadMe(into: parts)
         buildComposer()
+    }
+
+    @objc private func openInfo() {
+        navigationController?.pushViewController(UserInfoViewController(userId: LocalSettings.shared.userId,
+                                                                       name: me?.name ?? "Моя страница"),
+                                                animated: true)
     }
 
     private func loadMe(into parts: HeaderParts) {
@@ -42,9 +53,10 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
             self.me = user
             DispatchQueue.main.async {
                 parts.title.text = user.name
-                parts.subtitle.text = user.countersText.isEmpty ? user.subtitle
-                    : user.subtitle + "\n" + user.countersText
+                parts.subtitle.text = user.subtitle
+                parts.counters.text = user.countersText
                 parts.avatar.setRemote(user.photoMax)
+                self.addCover(user.photoMax)
                 self.title = user.name
             }
         }
@@ -141,10 +153,58 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         pinTableBottom(to: composer.topAnchor)
         table.separatorInset = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
 
+        buildComposeButton()
+        setComposerVisible(false, animated: false)
+
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(keyboardWillChange),
                                                name: UIResponder.keyboardWillChangeFrameNotification,
                                                object: nil)
+    }
+
+    /// Круглая кнопка публикации вместо постоянной нижней строки.
+    private func buildComposeButton() {
+        composeButton.setImage(UIFactory.icon("✎", size: 24), for: .normal)
+        composeButton.tintColor = .white
+        composeButton.backgroundColor = Theme.accent
+        composeButton.layer.cornerRadius = 28
+        composeButton.layer.shadowOpacity = 0.2
+        composeButton.layer.shadowRadius = 6
+        composeButton.layer.shadowOffset = CGSize(width: 0, height: 3)
+        composeButton.translatesAutoresizingMaskIntoConstraints = false
+        composeButton.addTarget(self, action: #selector(toggleComposer), for: .touchUpInside)
+        view.addSubview(composeButton)
+
+        NSLayoutConstraint.activate([
+            composeButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            composeButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+            composeButton.widthAnchor.constraint(equalToConstant: 56),
+            composeButton.heightAnchor.constraint(equalToConstant: 56)
+        ])
+    }
+
+    @objc private func toggleComposer() {
+        setComposerVisible(isComposerVisible == false, animated: true)
+    }
+
+    private func setComposerVisible(_ visible: Bool, animated: Bool) {
+        isComposerVisible = visible
+        composer.isHidden = visible == false
+        composeButton.isHidden = visible
+        if visible {
+            pinTableBottom(to: composer.topAnchor)
+            composerBottom.constant = 0
+            input.becomeFirstResponder()
+        } else {
+            input.resignFirstResponder()
+            composerBottom.constant = 0
+            pinTableBottom(to: view.safeAreaLayoutGuide.bottomAnchor)
+        }
+        if animated {
+            UIView.animate(withDuration: 0.25) { self.view.layoutIfNeeded() }
+        } else {
+            view.layoutIfNeeded()
+        }
     }
 
     deinit {
@@ -265,6 +325,7 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
                     switch result {
                     case .success:
                         self.clearComposer()
+                        self.setComposerVisible(false, animated: true)
                         self.load()
                     case .failure(let error):
                         self.presentAlert(title: "Ошибка", message: error.message)
@@ -366,5 +427,6 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         composer.backgroundColor = Theme.composerBackground
         input.textColor = Theme.textPrimary
         input.backgroundColor = Theme.card
+        composeButton.backgroundColor = Theme.accent
     }
 }

@@ -69,7 +69,8 @@ final class MemberCell: UITableViewCell {
     }
 
     func configure(user: VKUser, badge: String? = nil) {
-        configure(title: user.name, subtitle: user.subtitle, photo: user.photoMax, badge: badge)
+        let nick = user.screenName.isEmpty ? nil : "@\(user.screenName)"
+        configure(title: user.name, subtitle: user.subtitle, photo: user.photoMax, badge: badge ?? nick)
     }
 
     func configure(group: VKGroup) {
@@ -84,5 +85,10 @@ final class MemberCell: UITableViewCell {
         titleLabel.textColor = Theme.textPrimary
         subtitleLabel.textColor = Theme.textSecondary
         avatarView.layer.borderColor = Theme.divider.cgColor
+    }
+
+    /// Подсветить строку как играющий трек.
+    func setPlaying(_ playing: Bool) {
+        titleLabel.textColor = playing ? Theme.accent : Theme.textPrimary
     }
 }

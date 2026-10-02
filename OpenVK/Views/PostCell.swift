@@ -12,6 +12,7 @@ final class PostCell: UITableViewCell {
     private let card = UIView()
     private let avatarView = UIFactory.avatar(44)
     private let authorLabel = UIFactory.label("", size: 15, weight: .semibold)
+    private let screenNameLabel = UIFactory.label("", size: 12, color: Theme.textSecondary)
     private let timeLabel = UIFactory.label("", size: 12, color: Theme.textSecondary)
     private let postLabel = UIFactory.label("", size: 15)
     private let photoView = RemoteImageView()
@@ -51,6 +52,8 @@ final class PostCell: UITableViewCell {
         avatarView.isUserInteractionEnabled = true
         authorLabel.addGestureRecognizer(authorTap)
         authorLabel.isUserInteractionEnabled = true
+        screenNameLabel.addGestureRecognizer(authorTap)
+        screenNameLabel.isUserInteractionEnabled = true
 
         // Тап по фото открывает его во весь экран.
         photoView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(photoTapped)))
@@ -82,6 +85,7 @@ final class PostCell: UITableViewCell {
         contentView.addSubview(card)
         card.addSubview(avatarView)
         card.addSubview(authorLabel)
+        card.addSubview(screenNameLabel)
         card.addSubview(timeLabel)
         card.addSubview(stack)
 
@@ -99,6 +103,10 @@ final class PostCell: UITableViewCell {
             authorLabel.leadingAnchor.constraint(equalTo: avatarView.trailingAnchor, constant: 10),
             authorLabel.topAnchor.constraint(equalTo: card.topAnchor, constant: 13),
             authorLabel.trailingAnchor.constraint(lessThanOrEqualTo: timeLabel.leadingAnchor, constant: -8),
+
+            screenNameLabel.leadingAnchor.constraint(equalTo: authorLabel.leadingAnchor),
+            screenNameLabel.topAnchor.constraint(equalTo: authorLabel.bottomAnchor, constant: 1),
+            screenNameLabel.trailingAnchor.constraint(lessThanOrEqualTo: timeLabel.leadingAnchor, constant: -8),
 
             timeLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12),
             timeLabel.topAnchor.constraint(equalTo: card.topAnchor, constant: 15),
@@ -124,6 +132,7 @@ final class PostCell: UITableViewCell {
         avatarView.clear()
         photoView.clear()
         postLabel.text = nil
+        screenNameLabel.text = nil
         photoAspectRatio = 0
         photoHeight.constant = 0
         onLike = nil
@@ -163,11 +172,14 @@ final class PostCell: UITableViewCell {
         return String(count)
     }
 
-    func configure(post: VKPost, authorName: String, authorPhoto: String?, isLiked: Bool? = nil) {
+    func configure(post: VKPost, authorName: String, authorScreenName: String? = nil, authorPhoto: String?, isLiked: Bool? = nil) {
         let liked = isLiked ?? post.isLiked
         likedState = liked
 
         authorLabel.text = authorName
+        let screenName = authorScreenName?.trimmingCharacters(in: .whitespaces) ?? ""
+        screenNameLabel.text = screenName.isEmpty ? nil : "@\(screenName)"
+        screenNameLabel.isHidden = screenName.isEmpty
         timeLabel.text = TimeHelper.relative(post.date)
         postLabel.text = post.text
         postLabel.isHidden = post.text.isEmpty
@@ -197,6 +209,7 @@ final class PostCell: UITableViewCell {
         card.backgroundColor = Theme.card
         contentView.backgroundColor = Theme.background
         authorLabel.textColor = Theme.textPrimary
+        screenNameLabel.textColor = Theme.textSecondary
         postLabel.textColor = Theme.textPrimary
         timeLabel.textColor = Theme.textSecondary
         let actionTint = likedState ? Theme.error : Theme.textSecondary

@@ -6,6 +6,10 @@ import UIKit
 /// прячет лишние иконки в системный «Ещё», что ломает навигацию.
 /// Друзья, группы, музыка и настройки доступны из профиля.
 final class MainTabBarController: UITabBarController {
+    /// Мини-плеер над таб-баром — общий для всех вкладок.
+    private let miniPlayer = MiniPlayerBar()
+    private var miniPlayerIsVisible = false
+
     override func viewDidLoad() {
         super.viewDidLoad()
         Theme.decorate(self)
@@ -19,10 +23,47 @@ final class MainTabBarController: UITabBarController {
         ]
         tabBar.isTranslucent = false
 
+        buildMiniPlayer()
+
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(themeDidChange),
                                                name: .openVKThemeDidChange,
                                                object: nil)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(musicDidChange),
+                                               name: .openVKMusicDidChange,
+                                               object: nil)
+        musicDidChange()
+    }
+
+    private func buildMiniPlayer() {
+        view.addSubview(miniPlayer)
+        miniPlayer.onOpen = { [weak self] in self?.openMusic() }
+        NSLayoutConstraint.activate([
+            miniPlayer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            miniPlayer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            miniPlayer.bottomAnchor.constraint(equalTo: tabBar.topAnchor),
+            miniPlayer.heightAnchor.constraint(equalToConstant: MiniPlayerBar.height)
+        ])
+        miniPlayer.isHidden = true
+    }
+
+    /// Показывает мини-плеер и добавляет отступ контенту вкладок, чтобы
+    /// нижние элементы не прятались за панелью.
+    @objc private func musicDidChange() {
+        let visible = MusicPlayer.shared.currentTrack != nil
+        guard visible != miniPlayerIsVisible else { return }
+        miniPlayerIsVisible = visible
+        miniPlayer.isHidden = !visible
+        // У UITabBarController дополнительный отступ наследуется дочерними
+        // контроллерами, поэтому панель не перекрывает их содержимое.
+        additionalSafeAreaInsets.bottom = visible ? MiniPlayerBar.height : 0
+    }
+
+    private func openMusic() {
+        guard let navigation = selectedViewController as? UINavigationController else { return }
+        if navigation.topViewController is MusicViewController { return }
+        navigation.pushViewController(MusicViewController(), animated: true)
     }
 
     deinit {
@@ -40,6 +81,7 @@ final class MainTabBarController: UITabBarController {
             Theme.styleNavigationBar(navigation.navigationBar)
             navigation.topViewController?.view.backgroundColor = Theme.background
         }
+        miniPlayer.applyTheme()
         Theme.applyStatusBarStyle()
     }
 

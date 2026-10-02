@@ -23,7 +23,8 @@ final class GroupViewController: WallScreenController {
         let parts = addHeaderParts(avatarSize: 64)
         parts.avatar.setRemote(group.photoMax)
         parts.title.text = group.title
-        parts.subtitle.text = group.screenName.isEmpty ? group.membersText : group.screenName
+        parts.subtitle.text = group.screenName.isEmpty ? "" : "@" + group.screenName
+        parts.counters.text = group.membersText
         headerParts = parts
 
         addActionRow([
@@ -51,7 +52,7 @@ final class GroupViewController: WallScreenController {
                 guard total > 0 else { return }
                 self.group.membersCount = total
                 DispatchQueue.main.async {
-                    self.headerParts?.subtitle.text = self.group.membersText
+                    self.headerParts?.counters.text = self.group.membersText
                 }
             case .failure(let error):
                 // На части инстансов метода нет (error_code 3) — не критично.

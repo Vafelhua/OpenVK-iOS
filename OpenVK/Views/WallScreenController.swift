@@ -9,6 +9,12 @@ class WallScreenController: TableScreenController {
     let headerView = UIView()
     let headerStack = UIStackView()
 
+    /// Верх стека шапки: перепривязывается, если сверху добавляется обложка.
+    private var headerStackTop: NSLayoutConstraint!
+
+    /// Обложка уже добавлена (повторный вызов не должен дублировать вьюху).
+    private var hasCover = false
+
     private(set) var posts: [VKPost] = []
     private var users: [Int: VKUser] = [:]
     private var groups: [Int: VKGroup] = [:]
@@ -44,12 +50,13 @@ class WallScreenController: TableScreenController {
         view.addSubview(headerView)
 
         let safe = view.safeAreaLayoutGuide
+        headerStackTop = headerStack.topAnchor.constraint(equalTo: headerView.topAnchor, constant: 14)
         NSLayoutConstraint.activate([
             headerView.topAnchor.constraint(equalTo: safe.topAnchor),
             headerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             headerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
 
-            headerStack.topAnchor.constraint(equalTo: headerView.topAnchor, constant: 14),
+            headerStackTop,
             headerStack.leadingAnchor.constraint(equalTo: headerView.leadingAnchor, constant: 16),
             headerStack.trailingAnchor.constraint(equalTo: headerView.trailingAnchor, constant: -16),
             headerStack.bottomAnchor.constraint(equalTo: headerView.bottomAnchor, constant: -14),
@@ -78,17 +85,25 @@ class WallScreenController: TableScreenController {
         let avatar: RemoteImageView
         let title: UILabel
         let subtitle: UILabel
+        let counters: UILabel
     }
 
-    /// Строка «аватар + имя + подпись».
-    func addHeaderParts(avatarSize: CGFloat = 56) -> HeaderParts {
+    /// Строка «аватар + имя + подпись + счётчики». Если передан `coverURL`,
+    /// сверху добавляется обложка в пропорции 4:3.
+    func addHeaderParts(avatarSize: CGFloat = 56, coverURL: String? = nil) -> HeaderParts {
+        if let coverURL = coverURL, coverURL.isEmpty == false {
+            addCover(coverURL)
+        }
+
         let avatar = UIFactory.avatar(avatarSize, rounded: false)
         let title = UIFactory.label("", size: 18, weight: .bold)
         title.numberOfLines = 2
         let subtitle = UIFactory.label("", size: 13, color: Theme.textSecondary, lines: 2)
         subtitle.tag = WallScreenController.secondaryLabelTag
+        let counters = UIFactory.label("", size: 13, color: Theme.textSecondary, lines: 2)
+        counters.tag = WallScreenController.secondaryLabelTag
 
-        let textStack = UIStackView(arrangedSubviews: [title, subtitle])
+        let textStack = UIStackView(arrangedSubviews: [title, subtitle, counters])
         textStack.axis = .vertical
         textStack.spacing = 3
 
@@ -98,7 +113,32 @@ class WallScreenController: TableScreenController {
         row.alignment = .center
 
         headerStack.addArrangedSubview(row)
-        return HeaderParts(avatar: avatar, title: title, subtitle: subtitle)
+        return HeaderParts(avatar: avatar, title: title, subtitle: subtitle, counters: counters)
+    }
+
+    /// Обложка 4:3 на всю ширину шапки; стек шапки опускается под неё.
+    /// Вызывается один раз даже при повторной загрузке профиля.
+    func addCover(_ url: String) {
+        guard hasCover == false, url.isEmpty == false else { return }
+        hasCover = true
+
+        let cover = RemoteImageView()
+        cover.translatesAutoresizingMaskIntoConstraints = false
+        cover.contentMode = .scaleAspectFill
+        cover.clipsToBounds = true
+        headerView.addSubview(cover)
+
+        headerStackTop.isActive = false
+        headerStackTop = headerStack.topAnchor.constraint(equalTo: cover.bottomAnchor, constant: 14)
+        headerStackTop.isActive = true
+
+        NSLayoutConstraint.activate([
+            cover.topAnchor.constraint(equalTo: headerView.topAnchor),
+            cover.leadingAnchor.constraint(equalTo: headerView.leadingAnchor),
+            cover.trailingAnchor.constraint(equalTo: headerView.trailingAnchor),
+            cover.heightAnchor.constraint(equalTo: headerView.widthAnchor, multiplier: 0.75)
+        ])
+        cover.setRemote(url, placeholder: Theme.divider)
     }
 
     /// Ряд кнопок-действий под шапкой.
@@ -196,6 +236,13 @@ class WallScreenController: TableScreenController {
         return "OpenVK"
     }
 
+    func authorScreenName(for post: VKPost) -> String? {
+        if post.ownerIsGroup {
+            return groups[post.groupId]?.screenName
+        }
+        return users[post.fromId != 0 ? post.fromId : post.ownerId]?.screenName
+    }
+
     func authorPhoto(for post: VKPost) -> String? {
         if post.ownerIsGroup {
             return groups[post.groupId]?.photoMax
@@ -214,7 +261,10 @@ class WallScreenController: TableScreenController {
             let cell = dequeueCell(PostCell.self,
                                    identifier: PostCell.reuseId,
                                    at: indexPath) else { return UITableViewCell() }
-        cell.configure(post: post, authorName: authorName(for: post), authorPhoto: authorPhoto(for: post))
+        cell.configure(post: post,
+                       authorName: authorName(for: post),
+                       authorScreenName: authorScreenName(for: post),
+                       authorPhoto: authorPhoto(for: post))
 
         cell.onLike = { [weak self] in
             guard let self = self else { return }

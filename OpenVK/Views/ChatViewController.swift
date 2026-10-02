@@ -16,6 +16,27 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
     private var composerBottom: NSLayoutConstraint!
     private let longPoll = LongPollClient()
 
+    /// Строка чата: либо сообщение, либо разделитель дат.
+    private enum ChatItem {
+        case date(String)
+        case message(VKMessage)
+    }
+    private var displayItems: [ChatItem] = []
+
+    private static let dayInYearFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "d MMMM"
+        return formatter
+    }()
+
+    private static let dayFullFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "d MMMM yyyy"
+        return formatter
+    }()
+
     init(peer: VKPeer) {
         self.peer = peer
         super.init(nibName: nil, bundle: nil)
@@ -38,6 +59,7 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
 
         buildComposer()
         table.register(MessageCell.self, forCellReuseIdentifier: MessageCell.reuseId)
+        table.register(DateSeparatorCell.self, forCellReuseIdentifier: DateSeparatorCell.reuseId)
         registerKeyboard()
         table.keyboardDismissMode = .interactive
 
@@ -161,6 +183,7 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
         resetPagination()
         reachedHistoryEnd = false
         messages = []
+        rebuildDisplayItems()
         reload()
         loadHistory(silent: false)
     }
@@ -208,6 +231,7 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
                     // Смещение двигает только догрузка вверх: иначе новые
                     // сообщения из Long Poll «съедали» бы по одному из выборки.
                     if older { self.historyOffset += fresh.count }
+                    self.rebuildDisplayItems()
                     self.showStatus(self.messages.isEmpty ? "Сообщений пока нет" : nil)
                     self.reload()
                     if self.isLoadingFirstPage {
@@ -294,17 +318,53 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
 
     // MARK: - Таблица
 
+    /// Пересобирает список с разделителями дней перед группами сообщений.
+    private func rebuildDisplayItems() {
+        var items: [ChatItem] = []
+        var currentDay: TimeInterval?
+        let calendar = Calendar.current
+        for message in messages {
+            let date = Date(timeIntervalSince1970: TimeInterval(message.date))
+            let dayKey = calendar.startOfDay(for: date).timeIntervalSince1970
+            if dayKey != currentDay {
+                items.append(.date(dayText(for: date)))
+                currentDay = dayKey
+            }
+            items.append(.message(message))
+        }
+        displayItems = items
+    }
+
+    private func dayText(for date: Date) -> String {
+        if TimeHelper.isToday(date) { return "Сегодня" }
+        if TimeHelper.isYesterday(date) { return "Вчера" }
+        return Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
+            ? ChatViewController.dayInYearFormatter.string(from: date)
+            : ChatViewController.dayFullFormatter.string(from: date)
+    }
+
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return messages.count
+        return displayItems.count
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        guard let message = messages[safe: indexPath.row],
-            let cell = dequeueCell(MessageCell.self,
-                                   identifier: MessageCell.reuseId,
-                                   at: indexPath) else { return UITableViewCell() }
-        cell.configure(message: message)
-        return cell
+        switch displayItems[safe: indexPath.row] {
+        case .date(let text)?:
+            guard let cell = dequeueCell(DateSeparatorCell.self,
+                                         identifier: DateSeparatorCell.reuseId,
+                                         at: indexPath) else { return UITableViewCell() }
+            cell.configure(text)
+            cell.applyTheme()
+            return cell
+        case .message(let message)?:
+            guard let cell = dequeueCell(MessageCell.self,
+                                         identifier: MessageCell.reuseId,
+                                         at: indexPath) else { return UITableViewCell() }
+            cell.configure(message: message)
+            return cell
+        case .none:
+            return UITableViewCell()
+        }
     }
 
     override func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {

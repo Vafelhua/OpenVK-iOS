@@ -28,7 +28,9 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         paginationEnabled = true
         scopeButton.target = self
         scopeButton.action = #selector(scopeTapped)
-        navigationItem.rightBarButtonItems = [searchButton, scopeButton, refreshButton]
+        // Кнопка обновления — слева, как в клиенте OpenVK; справа поиск и охват.
+        navigationItem.leftBarButtonItem = refreshButton
+        navigationItem.rightBarButtonItems = [searchButton, scopeButton]
         load()
     }
 
@@ -239,8 +241,8 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
             load()
         }
         navigationItem.rightBarButtonItems = isSearching
-            ? [refreshButton, scopeButton]
-            : [searchButton, scopeButton, refreshButton]
+            ? [scopeButton]
+            : [searchButton, scopeButton]
     }
 
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
@@ -293,7 +295,10 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
             let cell = dequeueCell(PostCell.self,
                                    identifier: PostCell.reuseId,
                                    at: indexPath) else { return UITableViewCell() }
-        cell.configure(post: post, authorName: authorName(for: post), authorPhoto: authorPhoto(for: post))
+        cell.configure(post: post,
+                       authorName: authorName(for: post),
+                       authorScreenName: authorScreenName(for: post),
+                       authorPhoto: authorPhoto(for: post))
 
         cell.onLike = { [weak self] in
             guard let self = self else { return }
@@ -361,6 +366,13 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
             return user.name
         }
         return "OpenVK"
+    }
+
+    private func authorScreenName(for post: VKPost) -> String? {
+        if post.ownerIsGroup {
+            return groups[post.groupId]?.screenName
+        }
+        return users[post.fromId != 0 ? post.fromId : post.ownerId]?.screenName
     }
 
     private func authorPhoto(for post: VKPost) -> String? {

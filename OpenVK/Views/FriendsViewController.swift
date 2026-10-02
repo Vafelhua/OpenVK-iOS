@@ -6,10 +6,14 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
     private var filtered: [VKUser] = []
     private var searchBar: UISearchBar?
 
+    /// Режим выбора собеседника: заголовок меняется на «Новое сообщение».
+    var pickerMode = false
+
     override var itemsCount: Int { return filtered.count }
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        title = pickerMode ? "Новое сообщение" : "Друзья"
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .refresh,
                                                             target: self,
                                                             action: #selector(refreshTapped))

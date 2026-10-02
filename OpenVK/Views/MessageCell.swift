@@ -101,3 +101,49 @@ final class MessageCell: UITableViewCell {
         }
     }
 }
+
+/// Разделитель дней в чате («Сегодня», «Вчера», «5 января 2020»).
+final class DateSeparatorCell: UITableViewCell {
+    static let reuseId = "DateSeparatorCell"
+
+    private let pill = UIView()
+    private let label = UIFactory.label("", size: 12, weight: .medium, color: Theme.textSecondary)
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        selectionStyle = .none
+        contentView.backgroundColor = .clear
+
+        pill.layer.cornerRadius = 11
+        pill.translatesAutoresizingMaskIntoConstraints = false
+        label.translatesAutoresizingMaskIntoConstraints = false
+        pill.addSubview(label)
+        contentView.addSubview(pill)
+
+        NSLayoutConstraint.activate([
+            pill.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
+            pill.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
+            pill.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+
+            label.topAnchor.constraint(equalTo: pill.topAnchor, constant: 3),
+            label.bottomAnchor.constraint(equalTo: pill.bottomAnchor, constant: -3),
+            label.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 12),
+            label.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -12)
+        ])
+
+        applyTheme()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(_ text: String) {
+        label.text = text
+    }
+
+    func applyTheme() {
+        pill.backgroundColor = Theme.divider
+        label.textColor = Theme.textSecondary
+    }
+}
