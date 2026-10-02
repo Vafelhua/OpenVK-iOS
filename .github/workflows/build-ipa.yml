@@ -90,6 +90,9 @@ jobs:
         if: failure()
         # `::error::` создаёт аннотации в Checks API — они читаются
         # без токена, в отличие от логов и артефактов.
+        # Логи Actions недоступны без авторизации, поэтому упаковываем
+        # build.log в артефакт: артефакты публичного репозитория
+        # скачиваются без токена. Имя содержит номер прогона для поиска.
         run: |
           grep -E "error:" build/build.log | head -n 25 | while IFS= read -r line; do
             echo "::error title=Swift::$(echo "$line" | head -c 900)"
@@ -97,10 +100,6 @@ jobs:
           tail -n 12 build/build.log | while IFS= read -r line; do
             echo "::error title=build.log::$(echo "$line" | head -c 900)"
           done || true
-        # Логи Actions недоступны без авторизации, поэтому упаковываем
-        # build.log в артефакт: артефакты публичного репозитория
-        # скачиваются без токена. Имя содержит номер прогона для поиска.
-        run: |
           cp build/build.log "build-errors-${GITHUB_RUN_NUMBER}.log" 2>/dev/null || \
             echo "build.log отсутствует"
 
