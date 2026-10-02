@@ -13,9 +13,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         Theme.applyGlobalAppearance()
 
         let window = UIWindow(frame: UIScreen.main.bounds)
-        window.backgroundColor = Theme.background
         self.window = window
+        applyWindowAppearance()
 
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(themeDidChange),
+                                               name: .openVKThemeDidChange,
+                                               object: nil)
         NotificationCenter.default.addObserver(self,
                                                selector: #selector(authExpired),
                                                name: .openVKAuthExpired,
@@ -58,6 +62,20 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     // MARK: - Реакции на события
+
+    @objc private func themeDidChange() {
+        applyWindowAppearance()
+    }
+
+    /// Фон окна и цвет статус-бара должны следовать теме: сам по себе
+    /// `UIApplication` их не обновляет, из-за чего сверху оставалась полоса.
+    private func applyWindowAppearance() {
+        window?.backgroundColor = Theme.background
+        if #available(iOS 13.0, *) {
+            window?.overrideUserInterfaceStyle = Theme.isDark ? .dark : .light
+        }
+        Theme.applyStatusBarStyle()
+    }
 
     /// Токен протух: чистим учётные данные и объясняем пользователю причину
     /// на экране входа, который `showRoot` только что поставил.

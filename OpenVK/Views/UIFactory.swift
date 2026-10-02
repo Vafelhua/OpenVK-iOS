@@ -73,10 +73,14 @@ enum UIFactory {
 
         switch kind {
         case .news:
-            // Три «строки» ленты, верхняя — как заголовок.
-            UIBezierPath(rect: rect(3, 4, 20, 3)).fill()
-            UIBezierPath(roundedRect: rect(3, 10, 20, 3), cornerRadius: x(1.5)).fill()
-            UIBezierPath(roundedRect: rect(3, 16, 13, 3), cornerRadius: x(1.5)).fill()
+            // Домик — как вкладка «Лента» в клиенте VK/OpenVK.
+            let roof = UIBezierPath()
+            roof.move(to: CGPoint(x: x(2), y: y(12.5)))
+            roof.addLine(to: CGPoint(x: x(13), y: y(3)))
+            roof.addLine(to: CGPoint(x: x(24), y: y(12.5)))
+            roof.close()
+            roof.fill()
+            UIBezierPath(roundedRect: rect(5, 11, 16, 12), cornerRadius: x(1.5)).fill()
         case .messages:
             let bubble = UIBezierPath(roundedRect: rect(3, 5, 20, 14), cornerRadius: x(4))
             bubble.fill()
@@ -101,32 +105,12 @@ enum UIFactory {
             shoulders.close()
             shoulders.fill()
         case .settings:
-            // Шестерня: внешний зубчатый контур и вырез по центру.
-            let center = CGPoint(x: side / 2, y: side / 2)
-            let outer = x(10.5)
-            let inner = x(8.2)
-            let hole = x(3.6)
-            let teeth = 8
-            let path = UIBezierPath()
-            for index in 0..<(teeth * 2) {
-                let angle = CGFloat(index) * .pi / CGFloat(teeth) - .pi / 2
-                let radius = (index % 2 == 0) ? outer : inner
-                let point = CGPoint(x: center.x + cos(angle) * radius,
-                                    y: center.y + sin(angle) * radius)
-                if index == 0 {
-                    path.move(to: point)
-                } else {
-                    path.addLine(to: point)
-                }
-            }
-            path.close()
-            path.append(UIBezierPath(arcCenter: center,
-                                     radius: hole,
-                                     startAngle: 0,
-                                     endAngle: 2 * .pi,
-                                     clockwise: true))
-            path.usesEvenOddFillRule = true
-            path.fill()
+            // Сетка 2×2 — вкладка «Прочее» в клиенте VK/OpenVK.
+            let radius = x(1.5)
+            UIBezierPath(roundedRect: rect(3, 3, 9, 9), cornerRadius: radius).fill()
+            UIBezierPath(roundedRect: rect(14, 3, 9, 9), cornerRadius: radius).fill()
+            UIBezierPath(roundedRect: rect(3, 14, 9, 9), cornerRadius: radius).fill()
+            UIBezierPath(roundedRect: rect(14, 14, 9, 9), cornerRadius: radius).fill()
         }
 
         let image = UIGraphicsGetImageFromCurrentImageContext()

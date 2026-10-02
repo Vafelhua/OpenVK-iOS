@@ -18,10 +18,18 @@ final class SettingsViewController: UIViewController {
         buildContent()
         loadValues()
         wireActions()
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(themeDidChange),
+                                               name: .openVKThemeDidChange,
+                                               object: nil)
     }
 
-    /// Слушатели подключаются ровно один раз: `buildContent()` пересобирает
-    /// дерево при смене темы, и повторный `addTarget` срабатывал бы дважды.
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    /// Идемпотентная подписка: перед добавлением снимаем старые таргеты, иначе
+    /// после пересборки экрана (смена темы) обработчик срабатывал бы дважды.
     private func wireActions() {
         themeSwitch.removeTarget(nil, action: nil, for: .allEvents)
         saveServerButton.removeTarget(nil, action: nil, for: .allEvents)
@@ -80,7 +88,6 @@ final class SettingsViewController: UIViewController {
         saveServerButton.setTitle("Сохранить", for: .normal)
         saveServerButton.setTitleColor(Theme.accent, for: .normal)
         saveServerButton.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
-        saveServerButton.addTarget(self, action: #selector(saveServer), for: .touchUpInside)
         saveServerButton.translatesAutoresizingMaskIntoConstraints = false
 
         serverRow.addSubview(serverField)
@@ -272,14 +279,24 @@ final class SettingsViewController: UIViewController {
     @objc private func themeChanged() {
         LocalSettings.shared.isDarkTheme = themeSwitch.isOn
         Theme.applyGlobalAppearance()
+        Theme.reloadAppearance()
+    }
 
+    @objc private func themeDidChange() {
+        rebuild()
+    }
+
+    /// Пересобирает содержимое экрана после смены темы: цвета задаются при
+    /// создании вьюх, поэтому их нужно пересоздать, а не перекрасить.
+    private func rebuild() {
         stack.arrangedSubviews.forEach {
             stack.removeArrangedSubview($0)
             $0.removeFromSuperview()
         }
         buildContent()
         loadValues()
-        Theme.reloadAppearance()
+        wireActions()
+        Theme.decorate(self)
     }
 
     @objc private func saveServer() {
@@ -299,13 +316,14 @@ final class SettingsViewController: UIViewController {
         present(alert, animated: true, completion: nil)
     }
 
-    /// Обёртка раздела в навигационный контроллер с теми же стилями, что у вкладок.
+    /// Пушим раздел в существующий навигационный стек вкладки.
+    ///
+    /// Раньше здесь создавался вложенный `UINavigationController` и пушился в
+    /// текущий — вложение одного навигационного контроллера в другой приводит
+    /// к исключению UIKit («nest wrapped navigation controllers») и падению.
     private func push(_ controller: UIViewController, title: String) {
         controller.title = title
-        let navigation = UINavigationController(rootViewController: controller)
-        navigation.navigationBar.isTranslucent = false
-        Theme.styleNavigationBar(navigation.navigationBar)
-        navigationController?.pushViewController(navigation, animated: true)
+        navigationController?.pushViewController(controller, animated: true)
     }
 
     @objc private func openFriends() {

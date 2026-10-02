@@ -32,6 +32,15 @@ final class MainTabBarController: UITabBarController {
     @objc private func themeDidChange() {
         Theme.decorate(self)
         Theme.styleTabBar(tabBar)
+        // Навигационные бары дочерних вкладок создаются один раз и хранят
+        // цвета, выставленные напрямую. Appearance-proxy их не обновляет,
+        // поэтому после смены темы перекрашиваем каждый бар вручную — иначе
+        // сверху остаётся светлая полоса.
+        for case let navigation as UINavigationController in viewControllers ?? [] {
+            Theme.styleNavigationBar(navigation.navigationBar)
+            navigation.topViewController?.view.backgroundColor = Theme.background
+        }
+        Theme.applyStatusBarStyle()
     }
 
     private func wrap(_ controller: UIViewController,

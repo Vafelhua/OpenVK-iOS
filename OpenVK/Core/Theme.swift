@@ -94,6 +94,12 @@ enum Theme {
         NotificationCenter.default.post(name: .openVKThemeDidChange, object: nil)
     }
 
+    /// Цвет системного статус-бара под текущую тему. На iOS 12 работает
+    /// только при `UIViewControllerBasedStatusBarAppearance = NO` в Info.plist.
+    static func applyStatusBarStyle() {
+        UIApplication.shared.statusBarStyle = isDark ? .lightContent : .default
+    }
+
     private static func makeDividerImage() -> UIImage? {
         let size = CGSize(width: 1, height: 1)
         UIGraphicsBeginImageContextWithOptions(size, false, 0)

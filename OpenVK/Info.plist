@@ -45,6 +45,8 @@
 	</array>
 	<key>UIUserInterfaceStyle</key>
 	<string>Light</string>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Нужен доступ к фотографиям, чтобы прикреплять изображения к записям на стене.</string>
 	<key>NSAppTransportSecurity</key>
