@@ -11,7 +11,7 @@ final class ConversationCell: UITableViewCell {
     private let timeLabel = UIFactory.label("", size: 12, color: Theme.textSecondary)
     private let badgeLabel = UIFactory.label("", size: 11, weight: .bold, color: .white)
     private let separator = UIView()
-    private let photoWidth: NSLayoutConstraint
+    private var photoWidth: NSLayoutConstraint!
 
     var unreadCount: Int = 0
 
