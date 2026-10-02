@@ -146,6 +146,10 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
     // MARK: - Данные
 
     override func load() {
+        // Явная перезагрузка (pull-to-refresh, retry) начинает историю заново,
+        // иначе offset продолжил бы догружать старую страницу.
+        resetPagination()
+        messages = []
         loadHistory(silent: false)
     }
 
@@ -193,6 +197,8 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
                     }
                     self.updateScrollToBottomButton()
                 case .failure(let error):
+                    // Спиннер догрузки нужно снять всегда, иначе он залипает.
+                    self.setLoadingMore(false)
                     if silent == false {
                         self.showError(error)
                     }

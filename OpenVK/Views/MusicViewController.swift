@@ -21,7 +21,6 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
     private var timeControlObserver: NSKeyValueObservation?
     private var itemStatusObserver: NSKeyValueObservation?
     private var statusObservation: NSKeyValueObservation?
-    private var endObserver: NSObjectProtocol?
     private var progressTimer: Timer?
 
     override var itemsCount: Int { return tracks.count }
@@ -61,10 +60,6 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         timeControlObserver = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
             DispatchQueue.main.async { self?.updatePlayButton() }
         }
-        NotificationCenter.default.addObserver(self,
-                                               selector: #selector(playerItemEnded),
-                                               name: .AVPlayerItemDidPlayToEndTime,
-                                               object: nil)
     }
 
     private func stopObservingPlayer() {
@@ -73,15 +68,6 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         statusObservation = nil
         progressTimer?.invalidate()
         progressTimer = nil
-        if let endObserver = endObserver {
-            NotificationCenter.default.removeObserver(endObserver)
-            self.endObserver = nil
-        }
-    }
-
-    /// По завершении трека показываем ▶ вместо «паузы» на остановленном плеере.
-    @objc private func playerItemEnded() {
-        updatePlayButton()
     }
 
     private func configureAudioSession() {
@@ -224,10 +210,7 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
 
     private func applyDuration(_ duration: CMTime) {
         guard duration.isNumeric, CMTimeGetSeconds(duration) > 0 else { return }
-        guard playerTimeText() == nil else { return }
-        let total = Int(CMTimeGetSeconds(duration))
         updatePlayButton()
-        playerTitle.text = currentTrack.map { "\($0.displayName) · \(total / 60):\(String(format: "%02d", total % 60))" }
     }
 
     private func startProgressTimer() {

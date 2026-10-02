@@ -172,10 +172,6 @@ class WallScreenController: TableScreenController {
                     }
                     self.showStatus(self.posts.isEmpty ? "Записей пока нет" : nil)
                     self.reload()
-                    // Новые записи добавляем сверху списка.
-                    if self.wallOffset > self.posts.count, self.posts.isEmpty == false {
-                        self.table.setContentOffset(.zero, animated: false)
-                    }
                 case .failure(let error):
                     self.setLoadingMore(false)
                     self.showError(error)

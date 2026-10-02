@@ -227,6 +227,9 @@ extension CommentsViewController: UITextFieldDelegate {
 
 /// Комментарий к записи: автор берётся из profiles/groups ответа метода.
 struct VKComment {
+    /// Идентификатор нужен для дедупликации при пагинации:
+    /// сервер отдаёт пересекающиеся страницы комментариев.
+    let id: Int
     let text: String
     let authorName: String
     let authorPhoto: String?
@@ -249,7 +252,8 @@ struct VKComment {
             let group = groups.first(where: { $0.id == abs(fromId) })
             let authorName = user?.name ?? group?.name ?? "OpenVK"
             let authorPhoto = user?.photoMax ?? group?.photoMax
-            return VKComment(text: text,
+            return VKComment(id: J.getInt(dict, "id", 0),
+                             text: text,
                              authorName: authorName,
                              authorPhoto: authorPhoto,
                              date: J.getInt(dict, "date", 0))

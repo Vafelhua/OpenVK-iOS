@@ -9,7 +9,14 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
     let refreshControl = UIRefreshControl()
 
     private let spinner = UIActivityIndicatorView(style: .gray)
-    /// Элементы панели чата. Не private: ими пользуется ChatViewController.
+    private let statusLabel = UILabel()
+    private let footerSpinner = UIActivityIndicatorView(style: .gray)
+
+    // MARK: Панель чата
+    //
+    // Кнопка «вниз» и счётчик непрочитанных нужны только экрану чата, но
+    // строятся здесь, чтобы переиспользовать таблицу и её safe area.
+    // Видимость не private — ими пользуется ChatViewController.
     let scrollToBottomButton = UIButton(type: .system)
     let unreadBadge = UILabel()
     private var scrollToBottomBottom: NSLayoutConstraint!
@@ -20,8 +27,6 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
     var historyOffset = 0
     /// Первая страница ещё не открывалась снизу.
     var isLoadingFirstPage = true
-    private let statusLabel = UILabel()
-    private let footerSpinner = UIActivityIndicatorView(style: .gray)
 
     /// Якорные ограничения таблицы — наследники переставляют их,
     /// если снизу/сверху появляется свой постоянный элемент (композер, шапка).
@@ -72,8 +77,6 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
         footerSpinner.hidesWhenStopped = true
         footerSpinner.frame = CGRect(x: 0, y: 0, width: 0, height: 44)
 
-        // Кнопка «вниз» и счётчик непрочитанных: нужны только экрану чата,
-        // но строятся здесь, чтобы переиспользовать таблицу и её safe area.
         scrollToBottomButton.setImage(UIFactory.icon("↓", size: 20), for: .normal)
         scrollToBottomButton.backgroundColor = Theme.card
         scrollToBottomButton.tintColor = Theme.accent
