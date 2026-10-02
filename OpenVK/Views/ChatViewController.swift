@@ -247,7 +247,7 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
     private func preserveVisiblePosition(inserted count: Int) {
         guard count > 0 else { return }
         let previousHeight = table.contentSize.height
-        let previousOffset = table.contentOffset.y
+        let previousOffset = table.contentOffset
         table.layoutIfNeeded()
         let delta = table.contentSize.height - previousHeight
         guard delta > 0 else { return }
