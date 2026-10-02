@@ -17,27 +17,33 @@ extension UIColor {
 
 /// Тема приложения (светлая/тёмная). iOS 12 не умеет системную тёмную тему,
 /// поэтому цвета применяются вручную и перечитываются при смене темы.
+/// Палитра повторяет цвета официального клиента VK.
 enum Theme {
     static var isDark: Bool { return LocalSettings.shared.isDarkTheme }
 
-    static var background: UIColor { return isDark ? UIColor(hex: 0x1B1B1B) : UIColor(hex: 0xF3F3F3) }
-    static var card: UIColor { return isDark ? UIColor(hex: 0x252525) : UIColor.white }
-    static var navRail: UIColor { return isDark ? UIColor(hex: 0x1E1E1E) : UIColor.white }
-    static var textPrimary: UIColor { return isDark ? UIColor.white : UIColor(hex: 0x1A1A1A) }
-    static var textSecondary: UIColor { return isDark ? UIColor(hex: 0x9E9E9E) : UIColor(hex: 0x767676) }
-    static var divider: UIColor { return isDark ? UIColor(hex: 0x3A3A3A) : UIColor(hex: 0xE1E1E1) }
-    static var composerBackground: UIColor { return isDark ? UIColor(hex: 0x2D2D2D) : UIColor(hex: 0xF3F3F3) }
-    static var composerBorder: UIColor { return isDark ? UIColor(hex: 0x2D2D2D) : UIColor(hex: 0xDCDCDC) }
+    static var background: UIColor { return isDark ? UIColor(hex: 0x19191A) : UIColor(hex: 0xF2F3F5) }
+    static var card: UIColor { return isDark ? UIColor(hex: 0x242527) : .white }
+    static var navRail: UIColor { return isDark ? UIColor(hex: 0x1F2021) : .white }
+    static var textPrimary: UIColor { return isDark ? .white : UIColor(hex: 0x0F1720) }
+    static var textSecondary: UIColor { return isDark ? UIColor(hex: 0x7F8285) : UIColor(hex: 0x818C99) }
+    static var divider: UIColor { return isDark ? UIColor(hex: 0x2E2F31) : UIColor(hex: 0xE3E6E8) }
+    static var composerBackground: UIColor { return isDark ? UIColor(hex: 0x242527) : .white }
+    static var composerBorder: UIColor { return isDark ? UIColor(hex: 0x2E2F31) : UIColor(hex: 0xE3E6E8) }
 
-    static let accent = UIColor(hex: 0x0078D7)
-    static let accentPressed = UIColor(hex: 0x0063B1)
-    static let outgoing = UIColor(hex: 0x0078D7)
-    static let error = UIColor(hex: 0xC0392B)
-    static let avatarPlaceholder = UIColor(hex: 0xC0D9F0)
+    static let accent = UIColor(hex: 0x0077FF)
+    static let accentPressed = UIColor(hex: 0x0066E0)
+    static let outgoing = UIColor(hex: 0x0077FF)
+    static let error = UIColor(hex: 0xE64646)
+    static let avatarPlaceholder = UIColor(hex: 0xD8E3F2)
     static let logout = UIColor(hex: 0x7B4B4B)
 
-    static var incoming: UIColor { return isDark ? UIColor(hex: 0x2B2B2B) : UIColor(hex: 0xE4E4E4) }
-    static var incomingText: UIColor { return isDark ? UIColor.white : UIColor(hex: 0x1A1A1A) }
+    static var incoming: UIColor { return isDark ? UIColor(hex: 0x2E2F31) : .white }
+    static var incomingText: UIColor { return isDark ? .white : UIColor(hex: 0x0F1720) }
+
+    /// Скругление карточек — как в клиенте VK.
+    static var cardRadius: CGFloat { return 10 }
+    /// Высота плавающей кнопки/строки.
+    static var rowInset: CGFloat { return 12 }
 
     /// Базовое оформление контроллера (фон, навигация, таб-бар).
     static func decorate(_ controller: UIViewController) {
@@ -57,11 +63,16 @@ enum Theme {
         bar.tintColor = accent
         bar.isTranslucent = false
         bar.shadowImage = makeDividerImage()
-        let attributes: [NSAttributedString.Key: Any] = [
+        let title: [NSAttributedString.Key: Any] = [
             .foregroundColor: textPrimary,
             .font: UIFont.boldSystemFont(ofSize: 17)
         ]
-        bar.titleTextAttributes = attributes
+        bar.titleTextAttributes = title
+        // Крупный заголовок на корневых экранах — как в клиенте VK.
+        bar.largeTitleTextAttributes = [
+            .foregroundColor: textPrimary,
+            .font: UIFont.boldSystemFont(ofSize: 30)
+        ]
     }
 
     static func styleTabBar(_ bar: UITabBar) {
@@ -69,12 +80,14 @@ enum Theme {
         bar.tintColor = accent
         bar.isTranslucent = false
         bar.unselectedItemTintColor = textSecondary
+        bar.shadowImage = makeDividerImage()
     }
 
     static func applyGlobalAppearance() {
         styleNavigationBar(UINavigationBar.appearance())
         styleTabBar(UITabBar.appearance())
         UITableView.appearance().backgroundColor = background
+        UIRefreshControl.appearance().tintColor = textSecondary
     }
 
     static func reloadAppearance() {

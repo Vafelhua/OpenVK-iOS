@@ -43,6 +43,97 @@ enum UIFactory {
         return image?.withRenderingMode(.alwaysTemplate)
     }
 
+    /// Иконки таб-бара. SF Symbols появились только в iOS 13, поэтому значки
+    /// рисуются путями: на iOS 12 это единственный способ получить
+    /// аккуратную векторную иконку вместо текстовых глифов.
+    enum TabIcon: String {
+        case news
+        case messages
+        case profile
+        case settings
+    }
+
+    static func tabIcon(_ kind: TabIcon, size: CGFloat = 26) -> UIImage? {
+        let side = max(size, 12)
+        UIGraphicsBeginImageContextWithOptions(CGSize(width: side, height: side), false, 0)
+        guard let context = UIGraphicsGetCurrentContext() else {
+            UIGraphicsEndImageContext()
+            return nil
+        }
+        context.setShouldAntialias(true)
+        UIColor.black.setFill()
+        UIColor.black.setStroke()
+
+        let unit = side / 26.0
+        func x(_ value: CGFloat) -> CGFloat { return value * unit }
+        func y(_ value: CGFloat) -> CGFloat { return value * unit }
+        func rect(_ a: CGFloat, _ b: CGFloat, _ w: CGFloat, _ h: CGFloat) -> CGRect {
+            return CGRect(x: x(a), y: y(b), width: x(w), height: y(h))
+        }
+
+        switch kind {
+        case .news:
+            // Три «строки» ленты, верхняя — как заголовок.
+            UIBezierPath(rect: rect(3, 4, 20, 3)).fill()
+            UIBezierPath(roundedRect: rect(3, 10, 20, 3), cornerRadius: x(1.5)).fill()
+            UIBezierPath(roundedRect: rect(3, 16, 13, 3), cornerRadius: x(1.5)).fill()
+        case .messages:
+            let bubble = UIBezierPath(roundedRect: rect(3, 5, 20, 14), cornerRadius: x(4))
+            bubble.fill()
+            // Хвостик у пузыря.
+            let tail = UIBezierPath()
+            tail.move(to: CGPoint(x: x(8), y: y(19)))
+            tail.addLine(to: CGPoint(x: x(8), y: y(23)))
+            tail.addLine(to: CGPoint(x: x(14), y: y(19)))
+            tail.close()
+            tail.fill()
+        case .profile:
+            let head = UIBezierPath(ovalIn: rect(8.5, 3, 9, 9))
+            head.fill()
+            let shoulders = UIBezierPath()
+            shoulders.move(to: CGPoint(x: x(3.5), y: y(23)))
+            shoulders.addCurve(to: CGPoint(x: x(22.5), y: y(23)),
+                               controlPoint1: CGPoint(x: x(3.5), y: y(14.5)),
+                               controlPoint2: CGPoint(x: x(22.5), y: y(14.5)))
+            shoulders.addCurve(to: CGPoint(x: x(3.5), y: y(23)),
+                               controlPoint1: CGPoint(x: x(22.5), y: y(26)),
+                               controlPoint2: CGPoint(x: x(3.5), y: y(26)))
+            shoulders.close()
+            shoulders.fill()
+        case .settings:
+            // Шестерня: внешний зубчатый контур и вырез по центру.
+            let center = CGPoint(x: side / 2, y: side / 2)
+            let outer = x(10.5)
+            let inner = x(8.2)
+            let hole = x(3.6)
+            let teeth = 8
+            let path = UIBezierPath()
+            for index in 0..<(teeth * 2) {
+                let angle = CGFloat(index) * .pi / CGFloat(teeth) - .pi / 2
+                let radius = (index % 2 == 0) ? outer : inner
+                let point = CGPoint(x: center.x + cos(angle) * radius,
+                                    y: center.y + sin(angle) * radius)
+                if index == 0 {
+                    path.move(to: point)
+                } else {
+                    path.addLine(to: point)
+                }
+            }
+            path.close()
+            path.append(UIBezierPath(arcCenter: center,
+                                     radius: hole,
+                                     startAngle: 0,
+                                     endAngle: 2 * .pi,
+                                     clockwise: true))
+            path.usesEvenOddFillRule = true
+            path.fill()
+        }
+
+        let image = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return image?.withRenderingMode(.alwaysTemplate)
+    }
+
     static func alert(title: String, message: String) -> UIAlertController {
         let controller = UIAlertController(title: title, message: message, preferredStyle: .alert)
         controller.addAction(UIAlertAction(title: "ОК", style: .default, handler: nil))

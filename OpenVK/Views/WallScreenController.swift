@@ -131,6 +131,7 @@ class WallScreenController: TableScreenController {
 
     override func load() {
         wallOffset = 0
+        setLoadingMore(false)
         loadWall()
     }
 
@@ -158,17 +159,17 @@ class WallScreenController: TableScreenController {
                 switch result {
                 case .success(let value):
                     self.readProfilesAndGroups(value)
-                    var fresh = VKPost.readList(value)
-                    if self.wallOffset > 0 {
+                    let raw = VKPost.readList(value)
+                    if self.isLoadingMore {
                         // При догрузке не дублируем записи первой страницы.
                         let known = Set(self.posts.map { $0.id })
-                        fresh = fresh.filter { known.contains($0.id) == false }
-                        self.wallOffset += fresh.count
+                        let fresh = raw.filter { known.contains($0.id) == false }
+                        self.wallOffset += raw.count
                         self.posts = self.posts + fresh
                         self.setLoadingMore(false)
                     } else {
-                        self.wallOffset = fresh.count
-                        self.posts = fresh
+                        self.wallOffset = raw.count
+                        self.posts = raw
                     }
                     self.showStatus(self.posts.isEmpty ? "Записей пока нет" : nil)
                     self.reload()
@@ -209,16 +210,22 @@ class WallScreenController: TableScreenController {
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let post = posts[indexPath.row]
-        let cell = table.dequeueReusableCell(withIdentifier: PostCell.reuseId, for: indexPath) as! PostCell
+        guard let post = posts[safe: indexPath.row],
+            let cell = dequeueCell(PostCell.self,
+                                   identifier: PostCell.reuseId,
+                                   at: indexPath) else { return UITableViewCell() }
         cell.configure(post: post, authorName: authorName(for: post), authorPhoto: authorPhoto(for: post))
 
         cell.onLike = { [weak self] in
             guard let self = self else { return }
             PostActions.toggleLike(post, in: self) {
-                guard let row = self.posts.identityIndex(of: post),
-                      row < self.table.numberOfRows(inSection: 0) else { return }
-                self.table.reloadRows(at: [IndexPath(row: row, section: 0)], with: .none)
+                // `reloadRows` нельзя звать из сетевого callback во время
+                // обновления таблицы — откладываем на следующий кадр.
+                DispatchQueue.main.async {
+                    guard let row = self.posts.identityIndex(of: post),
+                        row < self.table.numberOfRows(inSection: 0) else { return }
+                    self.table.reloadRows(at: [IndexPath(row: row, section: 0)], with: .none)
+                }
             }
         }
         cell.onComment = { [weak self] in
@@ -237,8 +244,8 @@ class WallScreenController: TableScreenController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         table.deselectRow(at: indexPath, animated: true)
-        guard indexPath.row < posts.count else { return }
-        PostActions.openComments(posts[indexPath.row], in: self)
+        guard let post = posts[safe: indexPath.row] else { return }
+        PostActions.openComments(post, in: self)
     }
 
     func openAuthor(of post: VKPost) {

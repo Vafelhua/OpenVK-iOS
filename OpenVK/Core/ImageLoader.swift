@@ -192,15 +192,18 @@ final class RemoteImageView: UIImageView {
     }
 
     func setRemote(_ urlString: String?, placeholder: UIColor? = nil) {
-        // Тот же URL — перезагрузка не нужна, иначе картинка мигает при переиспользовании.
-        if currentURL == urlString, image != nil || urlString?.isEmpty != false {
-            if urlString?.isEmpty == false { backgroundColor = .clear }
+        let hasURL = (urlString?.isEmpty == false)
+        // Тот же URL — перезагрузка не нужна, иначе картинка мигает при
+        // переиспользовании ячейки. Но если предыдущая загрузка провалилась,
+        // картинки нет — тогда повторяем попытку.
+        if currentURL == urlString, image != nil || hasURL == false {
+            if hasURL { backgroundColor = .clear }
             return
         }
         currentURL = urlString
         image = nil
         let color = placeholder ?? placeholderColor
-        backgroundColor = (urlString?.isEmpty == false) ? color : .clear
+        backgroundColor = hasURL ? color : .clear
         guard let raw = urlString, raw.isEmpty == false else { return }
         ImageLoader.shared.load(raw) { [weak self] image in
             guard let self = self, let image = image, self.currentURL == raw else { return }

@@ -77,14 +77,17 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = table.dequeueReusableCell(withIdentifier: MemberCell.reuseId, for: indexPath) as! MemberCell
-        cell.configure(user: filtered[indexPath.row])
+        guard let user = filtered[safe: indexPath.row],
+            let cell = dequeueCell(MemberCell.self,
+                                   identifier: MemberCell.reuseId,
+                                   at: indexPath) else { return UITableViewCell() }
+        cell.configure(user: user)
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         table.deselectRow(at: indexPath, animated: true)
-        let user = filtered[indexPath.row]
+        guard let user = filtered[safe: indexPath.row] else { return }
         Navigator.openChat(VKPeer(id: user.id, kind: .user, title: user.name, photoURL: user.photoMax),
                            in: self)
     }

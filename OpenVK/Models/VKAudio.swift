@@ -32,6 +32,9 @@ final class VKAudio {
         return String(format: "%d:%02d", minutes, seconds)
     }
 
+    /// Подпись исполнителя для панели плеера.
+    var artistText: String { return artist.isEmpty ? "OpenVK" : artist }
+
     var attachmentValue: String { return "audio\(ownerId)_\(id)" }
 
     static func readList(_ result: Any?) -> [VKAudio] {

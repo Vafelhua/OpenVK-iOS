@@ -4,6 +4,10 @@ import UIKit
 final class ChatViewController: TableScreenController, UITextViewDelegate {
     private let peer: VKPeer
     private var messages: [VKMessage] = []
+    /// Запрос истории уже в полёте — второй ответ перетирал бы первый.
+    private var isFetchingHistory = false
+    /// Старая история закончилась (сервер вернул пустую страницу).
+    private var reachedHistoryEnd = false
 
     private let composer = UIView()
     private let input = UITextView()
@@ -67,6 +71,12 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
     private func buildComposer() {
         composer.translatesAutoresizingMaskIntoConstraints = false
         composer.backgroundColor = Theme.composerBackground
+        // Поля отступов прижимают поле ввода и кнопку к safe area:
+        // на iPhone с home indicator они больше не уезжают под системную полосу.
+        composer.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0,
+                                                                      leading: 12,
+                                                                      bottom: 0,
+                                                                      trailing: 12)
 
         let separator = UIView()
         separator.backgroundColor = Theme.composerBorder
@@ -75,11 +85,11 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
         input.translatesAutoresizingMaskIntoConstraints = false
         input.font = UIFont.systemFont(ofSize: 16)
         input.textColor = Theme.textPrimary
-        input.backgroundColor = .clear
+        input.backgroundColor = Theme.card
         input.isScrollEnabled = true
         input.delegate = self
-        input.layer.borderWidth = 1
-        input.layer.borderColor = Theme.composerBorder.cgColor
+        input.layer.cornerRadius = 18
+        input.layer.masksToBounds = true
 
         sendButton.setTitle("Отправить", for: .normal)
         sendButton.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
@@ -105,17 +115,17 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
             separator.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
             separator.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale),
 
-            input.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 10),
+            input.leadingAnchor.constraint(equalTo: composer.layoutMarginsGuide.leadingAnchor),
             input.topAnchor.constraint(equalTo: composer.topAnchor, constant: 8),
             input.bottomAnchor.constraint(equalTo: composer.bottomAnchor, constant: -8),
             input.heightAnchor.constraint(greaterThanOrEqualToConstant: 36),
             input.heightAnchor.constraint(lessThanOrEqualToConstant: 120),
 
-            placeholderLabel.leadingAnchor.constraint(equalTo: input.leadingAnchor, constant: 9),
+            placeholderLabel.leadingAnchor.constraint(equalTo: input.leadingAnchor, constant: 12),
             placeholderLabel.topAnchor.constraint(equalTo: input.topAnchor, constant: 8),
 
             sendButton.leadingAnchor.constraint(equalTo: input.trailingAnchor, constant: 10),
-            sendButton.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -12),
+            sendButton.trailingAnchor.constraint(equalTo: composer.layoutMarginsGuide.trailingAnchor),
             sendButton.bottomAnchor.constraint(equalTo: composer.bottomAnchor, constant: -12)
         ])
 
@@ -149,14 +159,23 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
         // Явная перезагрузка (pull-to-refresh, retry) начинает историю заново,
         // иначе offset продолжил бы догружать старую страницу.
         resetPagination()
+        reachedHistoryEnd = false
         messages = []
+        reload()
         loadHistory(silent: false)
     }
 
-    private func loadHistory(silent: Bool) {
+    private func loadHistory(silent: Bool, older: Bool = false) {
         if silent == false {
             setLoading(messages.isEmpty)
         }
+        // Параллельные ответы getHistory перетирали друг друга: держим
+        // один запрос за раз, остальные пропускаем.
+        guard isFetchingHistory == false else {
+            if older { setLoadingMore(false) }
+            return
+        }
+        isFetchingHistory = true
 
         // offset — догрузка старых сообщений при прокрутке вверх.
         var parameters = ["peer_id": String(peer.id), "count": "50"]
@@ -167,6 +186,7 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
         VKApiClient.shared.call("messages.getHistory", parameters) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self = self else { return }
+                self.isFetchingHistory = false
                 self.setLoading(false)
                 switch result {
                 case .success(let value):
@@ -179,18 +199,24 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
                     guard fresh.isEmpty == false else {
                         // Ответ пришёл целиком из уже загруженных сообщений:
                         // это обычное состояние при Long Poll, не ошибка.
+                        if older { self.reachedHistoryEnd = true }
                         self.setLoadingMore(false)
                         self.updateScrollToBottomButton()
                         return
                     }
                     self.messages = existing + fresh
-                    self.historyOffset += fresh.count
+                    // Смещение двигает только догрузка вверх: иначе новые
+                    // сообщения из Long Poll «съедали» бы по одному из выборки.
+                    if older { self.historyOffset += fresh.count }
                     self.showStatus(self.messages.isEmpty ? "Сообщений пока нет" : nil)
                     self.reload()
                     if self.isLoadingFirstPage {
                         // Первая страница всегда открывается снизу.
                         self.scrollToBottom(animated: silent == false)
                         self.isLoadingFirstPage = false
+                    } else if older {
+                        // Догруженная история не должна прокручивать чат вниз.
+                        self.preserveVisiblePosition(inserted: fresh.count)
                     } else if self.isScrolledToBottom() {
                         // Пользователь внизу — новое сообщение должно быть видно.
                         self.scrollToBottom(animated: true)
@@ -210,10 +236,23 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
     private func loadOlderMessages() {
         guard isLoadingMore == false, isLoading == false, hasMoreHistory else { return }
         setLoadingMore(true)
-        loadHistory(silent: true)
+        loadHistory(silent: true, older: true)
     }
 
-    private var hasMoreHistory: Bool { return historyOffset > 0 && messages.count >= 10 }
+    private var hasMoreHistory: Bool {
+        return historyOffset > 0 && messages.count >= 10 && reachedHistoryEnd == false
+    }
+
+    /// Догруженная история добавляется сверху: держим тот же контент перед глазами.
+    private func preserveVisiblePosition(inserted count: Int) {
+        guard count > 0 else { return }
+        let previousHeight = table.contentSize.height
+        let previousOffset = table.contentOffset.y
+        table.layoutIfNeeded()
+        let delta = table.contentSize.height - previousHeight
+        guard delta > 0 else { return }
+        table.setContentOffset(CGPoint(x: previousOffset.x, y: previousOffset.y + delta), animated: false)
+    }
 
     @objc private func sendTapped() {
         let text = (input.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -260,8 +299,11 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = table.dequeueReusableCell(withIdentifier: MessageCell.reuseId, for: indexPath) as! MessageCell
-        cell.configure(message: messages[indexPath.row])
+        guard let message = messages[safe: indexPath.row],
+            let cell = dequeueCell(MessageCell.self,
+                                   identifier: MessageCell.reuseId,
+                                   at: indexPath) else { return UITableViewCell() }
+        cell.configure(message: message)
         return cell
     }
 
@@ -308,7 +350,7 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
         super.applyTheme()
         composer.backgroundColor = Theme.composerBackground
         input.textColor = Theme.textPrimary
-        input.layer.borderColor = Theme.composerBorder.cgColor
+        input.backgroundColor = Theme.card
         placeholderLabel.textColor = Theme.textSecondary
     }
 }

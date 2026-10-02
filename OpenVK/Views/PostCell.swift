@@ -10,35 +10,41 @@ final class PostCell: UITableViewCell {
     var onAuthor: (() -> Void)?
 
     private let card = UIView()
-    private let avatarView = UIFactory.avatar(40)
+    private let avatarView = UIFactory.avatar(44)
     private let authorLabel = UIFactory.label("", size: 15, weight: .semibold)
     private let timeLabel = UIFactory.label("", size: 12, color: Theme.textSecondary)
     private let postLabel = UIFactory.label("", size: 15)
     private let photoView = RemoteImageView()
-    private let separator = UIView()
 
     private let likeButton = UIButton(type: .system)
     private let commentButton = UIButton(type: .system)
     private let repostButton = UIButton(type: .system)
-    private let likeCountLabel = UIFactory.label("", size: 13, color: Theme.textSecondary)
-    private let commentCountLabel = UIFactory.label("", size: 13, color: Theme.textSecondary)
-    private let repostCountLabel = UIFactory.label("", size: 13, color: Theme.textSecondary)
 
     private var photoHeight: NSLayoutConstraint!
+    /// Хранится отдельно, чтобы пересчитать высоту фото под реальную
+    /// ширину карточки, а не под ширину экрана.
+    private var photoAspectRatio: CGFloat = 0
+    /// Состояние лайка нужно и в `applyTheme`, куда пост не передаётся.
+    private var likedState = false
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         selectionStyle = .none
+        // Фон ячейки — серая «подложка», сама карточка белая со скруглением.
+        contentView.backgroundColor = Theme.background
 
         card.translatesAutoresizingMaskIntoConstraints = false
+        card.layer.cornerRadius = Theme.cardRadius
+        card.layer.masksToBounds = true
+
         photoView.translatesAutoresizingMaskIntoConstraints = false
         photoView.contentMode = .scaleAspectFill
-        separator.backgroundColor = Theme.divider
-        separator.translatesAutoresizingMaskIntoConstraints = false
+        photoView.layer.cornerRadius = Theme.cardRadius
+        photoView.layer.masksToBounds = true
 
-        configureActionButton(likeButton, glyph: "♡", label: "Нравится", action: #selector(likeTapped))
-        configureActionButton(commentButton, glyph: "✎", label: "Комментарии", action: #selector(commentTapped))
-        configureActionButton(repostButton, glyph: "↻", label: "Репост", action: #selector(repostTapped))
+        configureActionButton(likeButton, glyph: "♥", label: "", action: #selector(likeTapped))
+        configureActionButton(commentButton, glyph: "✎", label: "", action: #selector(commentTapped))
+        configureActionButton(repostButton, glyph: "↻", label: "", action: #selector(repostTapped))
 
         let authorTap = UITapGestureRecognizer(target: self, action: #selector(authorTapped))
         avatarView.addGestureRecognizer(authorTap)
@@ -50,22 +56,27 @@ final class PostCell: UITableViewCell {
         photoView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(photoTapped)))
         photoView.isUserInteractionEnabled = true
 
+        // Как в VK: иконка и счётчик рядом, третья колонка прижата вправо.
         let actionStack = UIStackView(arrangedSubviews: [likeButton, commentButton, repostButton])
         actionStack.axis = .horizontal
-        actionStack.distribution = .fillEqually
+        actionStack.alignment = .center
+        actionStack.spacing = 20
         actionStack.translatesAutoresizingMaskIntoConstraints = false
 
-        let counts = UIStackView(arrangedSubviews: [likeCountLabel, commentCountLabel, repostCountLabel])
-        counts.axis = .horizontal
-        counts.distribution = .fillEqually
+        let spacer = UIView()
+        spacer.translatesAutoresizingMaskIntoConstraints = false
+        let row = UIStackView(arrangedSubviews: [actionStack, spacer])
+        row.axis = .horizontal
+        row.alignment = .center
+        row.distribution = .fill
+        row.translatesAutoresizingMaskIntoConstraints = false
 
         let stack = UIStackView(arrangedSubviews: [
-            postLabel, photoView, actionStack, counts, separator
+            postLabel, photoView, row
         ])
         stack.axis = .vertical
         stack.spacing = 8
         stack.setCustomSpacing(12, after: photoView)
-        stack.setCustomSpacing(2, after: actionStack)
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         contentView.addSubview(card)
@@ -77,28 +88,30 @@ final class PostCell: UITableViewCell {
         photoHeight = photoView.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
-            card.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
-            card.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
-            card.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
-            card.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            card.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 5),
+            card.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
+            card.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
+            card.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -5),
 
-            avatarView.leadingAnchor.constraint(equalTo: card.leadingAnchor),
-            avatarView.topAnchor.constraint(equalTo: card.topAnchor),
+            avatarView.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
+            avatarView.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
 
             authorLabel.leadingAnchor.constraint(equalTo: avatarView.trailingAnchor, constant: 10),
-            authorLabel.topAnchor.constraint(equalTo: card.topAnchor, constant: 2),
+            authorLabel.topAnchor.constraint(equalTo: card.topAnchor, constant: 13),
             authorLabel.trailingAnchor.constraint(lessThanOrEqualTo: timeLabel.leadingAnchor, constant: -8),
 
-            timeLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor),
-            timeLabel.topAnchor.constraint(equalTo: card.topAnchor, constant: 4),
+            timeLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12),
+            timeLabel.topAnchor.constraint(equalTo: card.topAnchor, constant: 15),
 
             stack.topAnchor.constraint(equalTo: avatarView.bottomAnchor, constant: 10),
-            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor),
-            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -8),
+            stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
+            stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12),
+            stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -10),
 
-            photoHeight,
-            separator.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale)
+            row.heightAnchor.constraint(equalToConstant: 34),
+            spacer.heightAnchor.constraint(equalToConstant: 1),
+
+            photoHeight
         ])
     }
 
@@ -111,22 +124,48 @@ final class PostCell: UITableViewCell {
         avatarView.clear()
         photoView.clear()
         postLabel.text = nil
+        photoAspectRatio = 0
+        photoHeight.constant = 0
         onLike = nil
         onComment = nil
         onRepost = nil
         onAuthor = nil
     }
 
+    /// Высота фото считается от фактической ширины карточки: на iPad и при
+    /// разделении экрана старая формула по ширине экрана давала перекос.
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard photoAspectRatio > 0 else { return }
+        let available = photoView.bounds.width
+        guard available > 0 else { return }
+        let height = max(120, (available * photoAspectRatio).rounded())
+        if abs(photoHeight.constant - height) > 0.5 {
+            photoHeight.constant = height
+        }
+    }
+
     private func configureActionButton(_ button: UIButton, glyph: String, label: String, action: Selector) {
-        button.setTitle(" \(glyph) \(label)", for: .normal)
-        button.titleLabel?.font = UIFont.systemFont(ofSize: 13)
-        button.titleLabel?.lineBreakMode = .byTruncatingTail
+        button.setImage(UIFactory.icon(glyph, size: 19), for: .normal)
+        button.accessibilityLabel = label.isEmpty ? glyph : label
         button.contentHorizontalAlignment = .left
+        button.imageEdgeInsets = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 6)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .medium)
         button.addTarget(self, action: action, for: .touchUpInside)
+    }
+
+    /// Заголовок кнопки-действия: глиф + счётчик, как в клиенте VK.
+    private func actionTitle(glyph: String, count: Int) -> String {
+        guard count > 0 else { return "" }
+        if count >= 1000 {
+            return String(format: "%.1fK", Double(count) / 1000.0)
+        }
+        return String(count)
     }
 
     func configure(post: VKPost, authorName: String, authorPhoto: String?, isLiked: Bool? = nil) {
         let liked = isLiked ?? post.isLiked
+        likedState = liked
 
         authorLabel.text = authorName
         timeLabel.text = TimeHelper.relative(post.date)
@@ -134,21 +173,20 @@ final class PostCell: UITableViewCell {
         postLabel.isHidden = post.text.isEmpty
         avatarView.setRemote(authorPhoto)
 
-        likeButton.setTitle(liked ? " ♥ Нравится" : " ♡ Нравится", for: .normal)
-        likeCountLabel.text = post.likesCount > 0 ? String(post.likesCount) : ""
-        commentCountLabel.text = post.commentsCount > 0 ? String(post.commentsCount) : ""
-        repostCountLabel.text = post.repostsCount > 0 ? String(post.repostsCount) : ""
+        likeButton.setTitle(actionTitle(glyph: "♥", count: post.likesCount), for: .normal)
+        likeButton.setImage(UIFactory.icon(liked ? "♥" : "♡", size: 19), for: .normal)
+        commentButton.setTitle(actionTitle(glyph: "✎", count: post.commentsCount), for: .normal)
+        repostButton.setTitle(actionTitle(glyph: "↻", count: post.repostsCount), for: .normal)
 
         if let photo = post.photo {
             photoView.isHidden = false
             photoView.setRemote(photo.bigURL, placeholder: Theme.divider)
-            // Высота по реальным пропорциям снимка, а не константа 240:
-            // вертикальные фото больше не обрезаются по неправильно.
-            let width = UIScreen.main.bounds.width - 24
-            photoHeight.constant = max(120, (width * photo.aspectRatio).rounded())
+            photoAspectRatio = photo.aspectRatio
+            photoHeight.constant = max(120, (photoView.bounds.width * photo.aspectRatio).rounded())
         } else {
             photoView.isHidden = true
             photoView.clear()
+            photoAspectRatio = 0
             photoHeight.constant = 0
         }
 
@@ -161,13 +199,13 @@ final class PostCell: UITableViewCell {
         authorLabel.textColor = Theme.textPrimary
         postLabel.textColor = Theme.textPrimary
         timeLabel.textColor = Theme.textSecondary
-        likeCountLabel.textColor = Theme.textSecondary
-        commentCountLabel.textColor = Theme.textSecondary
-        repostCountLabel.textColor = Theme.textSecondary
-        likeButton.setTitleColor(Theme.accent, for: .normal)
+        let actionTint = likedState ? Theme.error : Theme.textSecondary
+        likeButton.setTitleColor(actionTint, for: .normal)
+        likeButton.tintColor = actionTint
         commentButton.setTitleColor(Theme.accent, for: .normal)
+        commentButton.tintColor = Theme.accent
         repostButton.setTitleColor(Theme.accent, for: .normal)
-        separator.backgroundColor = Theme.divider
+        repostButton.tintColor = Theme.accent
     }
 
     // MARK: - Действия

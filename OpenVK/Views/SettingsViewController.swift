@@ -17,6 +17,21 @@ final class SettingsViewController: UIViewController {
         setupScroll()
         buildContent()
         loadValues()
+        wireActions()
+    }
+
+    /// Слушатели подключаются ровно один раз: `buildContent()` пересобирает
+    /// дерево при смене темы, и повторный `addTarget` срабатывал бы дважды.
+    private func wireActions() {
+        themeSwitch.removeTarget(nil, action: nil, for: .allEvents)
+        saveServerButton.removeTarget(nil, action: nil, for: .allEvents)
+        logoutButton.removeTarget(nil, action: nil, for: .allEvents)
+        serverField.removeTarget(nil, action: nil, for: .allEvents)
+
+        themeSwitch.addTarget(self, action: #selector(themeChanged), for: .valueChanged)
+        serverField.addTarget(self, action: #selector(saveServer), for: .editingDidEnd)
+        saveServerButton.addTarget(self, action: #selector(saveServer), for: .touchUpInside)
+        logoutButton.addTarget(self, action: #selector(logout), for: .touchUpInside)
     }
 
     private func setupScroll() {
@@ -54,7 +69,6 @@ final class SettingsViewController: UIViewController {
             themeSwitch.centerYAnchor.constraint(equalTo: themeRow.centerYAnchor),
             themeRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 52)
         ])
-        themeSwitch.addTarget(self, action: #selector(themeChanged), for: .valueChanged)
         stack.addArrangedSubview(themeRow)
         stack.addArrangedSubview(makeSeparator())
 
@@ -62,7 +76,6 @@ final class SettingsViewController: UIViewController {
         stack.addArrangedSubview(makeSectionTitle("Адрес сервера OpenVK"))
         let serverRow = UIView()
         serverRow.backgroundColor = Theme.card
-        serverField.addTarget(self, action: #selector(saveServer), for: .editingDidEnd)
 
         saveServerButton.setTitle("Сохранить", for: .normal)
         saveServerButton.setTitleColor(Theme.accent, for: .normal)
@@ -118,7 +131,6 @@ final class SettingsViewController: UIViewController {
         logoutButton.setTitle("Выйти из аккаунта", for: .normal)
         logoutButton.setTitleColor(Theme.logout, for: .normal)
         logoutButton.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .semibold)
-        logoutButton.addTarget(self, action: #selector(logout), for: .touchUpInside)
         let logoutRow = makeRow(title: nil)
         logoutRow.addSubview(logoutButton)
         logoutButton.translatesAutoresizingMaskIntoConstraints = false
@@ -163,19 +175,44 @@ final class SettingsViewController: UIViewController {
     /// Строка-переход к экрану, который не поместился в таб-бар.
     private func makeNavigationRow(title: String, glyph: String, action: Selector) -> UIView {
         let row = makeRow(title: nil)
+
+        let icon = UIImageView(image: UIFactory.icon(glyph, size: 20))
+        icon.tintColor = Theme.accent
+        icon.contentMode = .scaleAspectFit
+        icon.translatesAutoresizingMaskIntoConstraints = false
+
         let button = UIButton(type: .system)
-        button.setTitle(" \(glyph)   \(title)", for: .normal)
+        button.setTitle(title, for: .normal)
         button.setTitleColor(Theme.textPrimary, for: .normal)
         button.titleLabel?.font = UIFont.systemFont(ofSize: 16)
         button.contentHorizontalAlignment = .left
         button.addTarget(self, action: action, for: .touchUpInside)
         button.translatesAutoresizingMaskIntoConstraints = false
+
+        let chevron = UIImageView(image: UIFactory.icon("›", size: 22))
+        chevron.tintColor = Theme.textSecondary
+        chevron.contentMode = .scaleAspectFit
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+
+        row.addSubview(icon)
         row.addSubview(button)
+        row.addSubview(chevron)
+
         NSLayoutConstraint.activate([
-            button.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 16),
-            button.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -16),
+            icon.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 16),
+            icon.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 24),
+            icon.heightAnchor.constraint(equalToConstant: 24),
+
+            button.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 12),
             button.topAnchor.constraint(equalTo: row.topAnchor),
             button.bottomAnchor.constraint(equalTo: row.bottomAnchor),
+            button.trailingAnchor.constraint(equalTo: chevron.leadingAnchor, constant: -8),
+
+            chevron.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -16),
+            chevron.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            chevron.widthAnchor.constraint(equalToConstant: 12),
+
             row.heightAnchor.constraint(equalToConstant: 52)
         ])
         return row

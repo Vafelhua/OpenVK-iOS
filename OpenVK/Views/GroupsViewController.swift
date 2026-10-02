@@ -45,14 +45,18 @@ final class GroupsViewController: TableScreenController {
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = table.dequeueReusableCell(withIdentifier: MemberCell.reuseId, for: indexPath) as! MemberCell
-        cell.configure(group: groups[indexPath.row])
+        guard let group = groups[safe: indexPath.row],
+            let cell = dequeueCell(MemberCell.self,
+                                   identifier: MemberCell.reuseId,
+                                   at: indexPath) else { return UITableViewCell() }
+        cell.configure(group: group)
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         table.deselectRow(at: indexPath, animated: true)
-        Navigator.openGroup(groups[indexPath.row], in: self)
+        guard let group = groups[safe: indexPath.row] else { return }
+        Navigator.openGroup(group, in: self)
     }
 
     override func reload() {

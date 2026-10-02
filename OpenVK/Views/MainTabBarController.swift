@@ -12,10 +12,10 @@ final class MainTabBarController: UITabBarController {
         Theme.styleTabBar(tabBar)
 
         viewControllers = [
-            wrap(NewsfeedViewController(), title: "Новости", glyph: "▦"),
-            wrap(ConversationsViewController(), title: "Сообщения", glyph: "✉"),
-            wrap(ProfileViewController(), title: "Профиль", glyph: "☺"),
-            wrap(SettingsViewController(), title: "Настройки", glyph: "⚙")
+            wrap(NewsfeedViewController(), title: "Новости", icon: .news),
+            wrap(ConversationsViewController(), title: "Сообщения", icon: .messages),
+            wrap(ProfileViewController(), title: "Профиль", icon: .profile),
+            wrap(SettingsViewController(), title: "Настройки", icon: .settings)
         ]
         tabBar.isTranslucent = false
 
@@ -34,16 +34,17 @@ final class MainTabBarController: UITabBarController {
         Theme.styleTabBar(tabBar)
     }
 
-    private func wrap(_ controller: UIViewController, title: String, glyph: String) -> UINavigationController {
+    private func wrap(_ controller: UIViewController,
+                      title: String,
+                      icon: UIFactory.TabIcon) -> UINavigationController {
         controller.title = title
         let navigation = UINavigationController(rootViewController: controller)
         navigation.navigationBar.isTranslucent = false
         Theme.styleNavigationBar(navigation.navigationBar)
 
         let item = UITabBarItem(title: title,
-                                image: UIFactory.icon(glyph, size: 26),
-                                selectedImage: nil)
-        item.title = title
+                                image: UIFactory.tabIcon(icon),
+                                selectedImage: UIFactory.tabIcon(icon))
         navigation.tabBarItem = item
         return navigation
     }

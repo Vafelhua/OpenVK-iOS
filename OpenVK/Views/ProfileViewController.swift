@@ -64,8 +64,9 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         input.font = UIFont.systemFont(ofSize: 16)
         input.textColor = Theme.textPrimary
         input.backgroundColor = Theme.card
-        input.layer.borderWidth = 1
-        input.layer.borderColor = Theme.composerBorder.cgColor
+        input.layer.cornerRadius = 12
+        input.layer.masksToBounds = true
+        input.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
         input.isScrollEnabled = true
         input.delegate = self
 
@@ -99,6 +100,10 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         composer.addSubview(buttons)
 
         composerBottom = composer.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        composer.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0,
+                                                                     leading: 12,
+                                                                     bottom: 0,
+                                                                     trailing: 12)
         previewHeight = previewStack.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
@@ -113,22 +118,22 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
             topLine.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale),
 
             input.topAnchor.constraint(equalTo: composer.topAnchor, constant: 8),
-            input.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 10),
-            input.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -10),
+            input.leadingAnchor.constraint(equalTo: composer.layoutMarginsGuide.leadingAnchor),
+            input.trailingAnchor.constraint(equalTo: composer.layoutMarginsGuide.trailingAnchor),
             input.heightAnchor.constraint(greaterThanOrEqualToConstant: 40),
             input.heightAnchor.constraint(lessThanOrEqualToConstant: 120),
 
-            placeholder.leadingAnchor.constraint(equalTo: input.leadingAnchor, constant: 9),
+            placeholder.leadingAnchor.constraint(equalTo: input.leadingAnchor, constant: 8),
             placeholder.topAnchor.constraint(equalTo: input.topAnchor, constant: 8),
 
             previewStack.topAnchor.constraint(equalTo: input.bottomAnchor, constant: 6),
-            previewStack.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 10),
-            previewStack.trailingAnchor.constraint(lessThanOrEqualTo: composer.trailingAnchor, constant: -10),
+            previewStack.leadingAnchor.constraint(equalTo: composer.layoutMarginsGuide.leadingAnchor),
+            previewStack.trailingAnchor.constraint(lessThanOrEqualTo: composer.layoutMarginsGuide.trailingAnchor),
             previewHeight,
 
             buttons.topAnchor.constraint(equalTo: previewStack.bottomAnchor, constant: 4),
-            buttons.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 12),
-            buttons.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -12),
+            buttons.leadingAnchor.constraint(equalTo: composer.layoutMarginsGuide.leadingAnchor),
+            buttons.trailingAnchor.constraint(equalTo: composer.layoutMarginsGuide.trailingAnchor),
             buttons.bottomAnchor.constraint(equalTo: composer.bottomAnchor, constant: -10),
             buttons.heightAnchor.constraint(equalToConstant: 30)
         ])
@@ -172,19 +177,16 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         guard let data = image.jpegData(compressionQuality: 0.8) else { return }
         pendingImageData = data
 
-        let view = RemoteImageView(cornerRadius: 4)
+        // Повторный выбор заменяет превью, а не добавляет второе:
+        // иначе в композере накапливались дубли одного и того же фото.
+        clearPreview()
+        let view = RemoteImageView(cornerRadius: 10)
         view.image = image
         view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             view.widthAnchor.constraint(equalToConstant: 56),
             view.heightAnchor.constraint(equalToConstant: 56)
         ])
-        // Повторный выбор заменяет превью, а не добавляет второе:
-        // иначе в композере накапливались дубли одного и того же фото.
-        previewStack.arrangedSubviews.forEach { existing in
-            previewStack.removeArrangedSubview(existing)
-            existing.removeFromSuperview()
-        }
         previewStack.addArrangedSubview(view)
         previewImage = view
         previewHeight.constant = 56
@@ -341,9 +343,18 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         attachments = []
         pendingImageData = nil
         pendingAudioTitle = nil
-        previewStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        previewHeight.constant = 0
+        clearPreview()
         previewImage = nil
+    }
+
+    /// `removeFromSuperview` оставлял вьюхи в `arrangedSubviews` стека —
+    /// следующее превью вставало поверх «мёртвых» подписок и ломалось.
+    private func clearPreview() {
+        for subview in previewStack.arrangedSubviews {
+            previewStack.removeArrangedSubview(subview)
+            subview.removeFromSuperview()
+        }
+        previewHeight.constant = 0
     }
 
     func textViewDidChange(_ textView: UITextView) {
@@ -355,6 +366,5 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         composer.backgroundColor = Theme.composerBackground
         input.textColor = Theme.textPrimary
         input.backgroundColor = Theme.card
-        input.layer.borderColor = Theme.composerBorder.cgColor
     }
 }

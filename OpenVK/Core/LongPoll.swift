@@ -161,12 +161,14 @@ final class LongPollClient {
         DispatchQueue.main.async { self.onFallback?() }
 
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: fallbackInterval, repeats: true) { [weak self] _ in
+        // Именно `Timer(timeInterval:)`, а не `scheduledTimer`: созданный
+        // scheduledTimer уже висит в default mode, и добавление в .common
+        // заставляло таймер срабатывать дважды за тик (двойной onUpdate).
+        let created = Timer(timeInterval: fallbackInterval, repeats: true) { [weak self] _ in
             guard let self = self, self.isRunning else { return }
             self.onUpdate?()
         }
-        if let timer = timer {
-            RunLoop.main.add(timer, forMode: .common)
-        }
+        RunLoop.main.add(created, forMode: .common)
+        timer = created
     }
 }

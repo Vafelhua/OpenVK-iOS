@@ -19,8 +19,13 @@ final class MessageCell: UITableViewCell {
         contentView.backgroundColor = .clear
 
         bubble.translatesAutoresizingMaskIntoConstraints = false
+        bubble.layer.cornerRadius = 14
+        bubble.layer.masksToBounds = true
         photoView.translatesAutoresizingMaskIntoConstraints = false
         photoView.contentMode = .scaleAspectFill
+        photoView.layer.cornerRadius = 10
+        photoView.layer.masksToBounds = true
+        timeLabel.textAlignment = .right
 
         let textStack = UIStackView(arrangedSubviews: [bubbleLabel])
         textStack.axis = .vertical
@@ -37,22 +42,23 @@ final class MessageCell: UITableViewCell {
         photoHeight = photoView.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
-            bubble.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
-            bubble.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
-            bubble.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.82),
+            bubble.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 3),
+            bubble.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -3),
+            bubble.widthAnchor.constraint(lessThanOrEqualTo: contentView.widthAnchor, multiplier: 0.78),
 
             textStack.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 7),
-            textStack.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 10),
-            textStack.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -10),
+            textStack.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
+            textStack.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
 
             photoView.topAnchor.constraint(equalTo: textStack.bottomAnchor, constant: 6),
-            photoView.leadingAnchor.constraint(equalTo: bubble.leadingAnchor),
-            photoView.trailingAnchor.constraint(equalTo: bubble.trailingAnchor),
+            photoView.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 4),
+            photoView.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -4),
             photoHeight,
 
             timeLabel.topAnchor.constraint(equalTo: photoView.bottomAnchor, constant: 4),
-            timeLabel.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 10),
-            timeLabel.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -6)
+            timeLabel.leadingAnchor.constraint(greaterThanOrEqualTo: bubble.leadingAnchor, constant: 12),
+            timeLabel.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
+            timeLabel.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -5)
         ])
     }
 

@@ -58,19 +58,22 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
                 switch result {
                 case .success(let value):
                     self.readProfilesAndGroups(value)
-                    var fresh = VKPost.readList(value)
-                    if self.feedOffset > 0 {
+                    let raw = VKPost.readList(value)
+                    if self.isLoadingMore {
                         // Догрузка: не дублируем записи первой страницы.
                         let known = Set(self.posts.map { $0.id })
-                        fresh = fresh.filter { known.contains($0.id) == false }
+                        let fresh = raw.filter { known.contains($0.id) == false }
                         self.posts = self.posts + fresh
+                        self.feedOffset += raw.count
                         self.setLoadingMore(false)
                     } else {
-                        self.feedOffset = fresh.count
-                        self.posts = fresh
+                        self.feedOffset = raw.count
+                        self.posts = raw
                     }
                     // Страница короче лимита — лента исчерпана, догружать больше нечего.
-                    self.reachedFeedEnd = fresh.count < 20
+                    // Считаем по «сырому» ответу: после фильтрации дублей count
+                    // меньше лимита даже при полной странице и лента обрывалась.
+                    self.reachedFeedEnd = raw.count < 20
                     self.showStatus(self.posts.isEmpty ? "Пока нет записей" : nil)
                     self.reload()
                 case .failure(let error):
@@ -90,9 +93,11 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
 
     /// Догрузка следующей страницы ленты.
     override func loadMore() {
+        // В режиме поиска `load()` уходит в поисковый запрос, который
+        // стирает найденное — догружать ленту в этот момент нельзя.
+        guard isSearching == false else { return }
         guard isLoadingMore == false, isLoading == false, reachedFeedEnd == false else { return }
         setLoadingMore(true)
-        feedOffset += 20
         load()
     }
 
@@ -179,6 +184,7 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
     // MARK: - Действия
 
     @objc private func refreshTapped() {
+        setLoadingMore(false)
         load()
     }
 
@@ -188,6 +194,8 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         posts = []
         feedOffset = 0
         reachedFeedEnd = false
+        setLoadingMore(false)
+        reload()
         load()
     }
 
@@ -196,14 +204,16 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
     }
 
     @objc private func searchTapped() {
-        isSearching = isSearching == false
-        setSearchMode(isSearching)
+        setSearchMode(isSearching == false)
     }
 
     private func setSearchMode(_ enabled: Bool) {
+        isSearching = enabled
         searchDebounce?.cancel()
         VKApiClient.shared.cancel("newsfeed.search.users")
         VKApiClient.shared.cancel("newsfeed.search.posts")
+        searchGeneration += 1
+        setLoadingMore(false)
         if enabled {
             let bar = UISearchBar()
             bar.delegate = self
@@ -223,6 +233,9 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
             searchBar = nil
             foundUsers = []
             foundPosts = []
+            // Секций становится снова одна, а таблица ещё думает, что их две:
+            // без немедленного reload UIKit спросит вторую секцию и упадёт.
+            reload()
             load()
         }
         navigationItem.rightBarButtonItems = isSearching
@@ -267,14 +280,19 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         if isSearching && indexPath.section == 0 {
-            let cell = table.dequeueReusableCell(withIdentifier: MemberCell.reuseId, for: indexPath) as! MemberCell
-            cell.configure(user: foundUsers[indexPath.row])
+            guard let user = foundUsers[safe: indexPath.row],
+                let cell = dequeueCell(MemberCell.self,
+                                       identifier: MemberCell.reuseId,
+                                       at: indexPath) else { return UITableViewCell() }
+            cell.configure(user: user)
             return cell
         }
 
         let list = isSearching ? foundPosts : posts
-        let post = list[indexPath.row]
-        let cell = table.dequeueReusableCell(withIdentifier: PostCell.reuseId, for: indexPath) as! PostCell
+        guard let post = list[safe: indexPath.row],
+            let cell = dequeueCell(PostCell.self,
+                                   identifier: PostCell.reuseId,
+                                   at: indexPath) else { return UITableViewCell() }
         cell.configure(post: post, authorName: authorName(for: post), authorPhoto: authorPhoto(for: post))
 
         cell.onLike = { [weak self] in
@@ -301,20 +319,26 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         table.deselectRow(at: indexPath, animated: true)
 
         if isSearching && indexPath.section == 0 {
-            Navigator.openUser(foundUsers[indexPath.row], in: self)
+            guard let user = foundUsers[safe: indexPath.row] else { return }
+            Navigator.openUser(user, in: self)
             return
         }
         let list = isSearching ? foundPosts : posts
-        guard indexPath.row < list.count else { return }
-        PostActions.openComments(list[indexPath.row], in: self)
+        guard let post = list[safe: indexPath.row] else { return }
+        PostActions.openComments(post, in: self)
     }
 
     private func reloadRow(with post: VKPost, isFound: Bool) {
-        let list = isFound ? foundPosts : posts
-        guard let row = list.identityIndex(of: post) else { return }
-        let section = isFound ? 1 : 0
-        guard row < table.numberOfRows(inSection: section) else { return }
-        table.reloadRows(at: [IndexPath(row: row, section: section)], with: .none)
+        // `reloadRows` нельзя вызывать из callback, пока таблица ещё
+        // обновляется, — откладываем на следующий цикл run loop.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let list = isFound ? self.foundPosts : self.posts
+            guard let row = list.identityIndex(of: post) else { return }
+            let section = isFound ? 1 : 0
+            guard row < self.table.numberOfRows(inSection: section) else { return }
+            self.table.reloadRows(at: [IndexPath(row: row, section: section)], with: .none)
+        }
     }
 
     private func openAuthor(of post: VKPost) {

@@ -11,6 +11,9 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
     private let spinner = UIActivityIndicatorView(style: .gray)
     private let statusLabel = UILabel()
     private let footerSpinner = UIActivityIndicatorView(style: .gray)
+    /// Подвал таблицы создаётся один раз и больше не подменяется: смена
+    /// `tableFooterView` во время `willDisplay` роняет UIKit.
+    private let footerContainer = UIView()
 
     // MARK: Панель чата
     //
@@ -54,7 +57,6 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
         table.rowHeight = UITableView.automaticDimension
         table.estimatedRowHeight = 76
         table.separatorInset = UIEdgeInsets(top: 0, left: 64, bottom: 0, right: 0)
-        table.tableFooterView = UIView()
         table.backgroundColor = Theme.background
         table.register(MemberCell.self, forCellReuseIdentifier: MemberCell.reuseId)
         table.register(ConversationCell.self, forCellReuseIdentifier: ConversationCell.reuseId)
@@ -75,7 +77,12 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
 
         footerSpinner.translatesAutoresizingMaskIntoConstraints = false
         footerSpinner.hidesWhenStopped = true
-        footerSpinner.frame = CGRect(x: 0, y: 0, width: 0, height: 44)
+
+        footerContainer.frame = CGRect(x: 0, y: 0, width: 0, height: 0)
+        footerSpinner.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+        footerSpinner.autoresizingMask = [.flexibleLeftMargin, .flexibleRightMargin, .flexibleTopMargin, .flexibleBottomMargin]
+        footerContainer.addSubview(footerSpinner)
+        table.tableFooterView = footerContainer
 
         scrollToBottomButton.setImage(UIFactory.icon("↓", size: 20), for: .normal)
         scrollToBottomButton.backgroundColor = Theme.card
@@ -169,11 +176,23 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
         isLoadingMore = value
         if value {
             footerSpinner.startAnimating()
-            table.tableFooterView = footerSpinner
         } else {
             footerSpinner.stopAnimating()
-            table.tableFooterView = UIView()
         }
+        // Высота подвала меняет contentSize, а вызывается это в том числе из
+        // `willDisplay` — внутри прохода layout. Поэтому откладываем на следующий
+        // цикл run loop, иначе UIKit падает на несогласованном tableFooterView.
+        DispatchQueue.main.async { [weak self] in
+            self?.resizeFooter(height: value ? 44 : 0)
+        }
+    }
+
+    private func resizeFooter(height: CGFloat) {
+        guard table.tableFooterView === footerContainer else { return }
+        guard abs(footerContainer.frame.height - height) > 0.5 else { return }
+        footerContainer.frame = CGRect(x: 0, y: 0,
+                                       width: footerContainer.frame.width,
+                                       height: height)
     }
 
     /// `true`, когда список пуст и повторять загрузку имеет смысл.
@@ -212,9 +231,31 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
     /// Прокрутка к последней строке. Базовая реализация не знает про чат,
     /// поэтому проверки «пользователь уже внизу» живут в ChatViewController.
     func scrollToBottom(animated: Bool) {
-        guard table.numberOfRows(inSection: 0) > 0 else { return }
-        let last = IndexPath(row: table.numberOfRows(inSection: 0) - 1, section: 0)
-        table.scrollToRow(at: last, at: .bottom, animated: animated)
+        guard table.numberOfSections > 0 else { return }
+        // Последняя непустая секция: у поиска в новостях их две.
+        var section = table.numberOfSections - 1
+        var row = table.numberOfRows(inSection: section) - 1
+        while row < 0, section > 0 {
+            section -= 1
+            row = table.numberOfRows(inSection: section) - 1
+        }
+        guard row >= 0 else { return }
+        let target = IndexPath(row: row, section: section)
+
+        // Если вьюха ещё не в окне или таблица не посчитала высоты ячеек,
+        // прокрутка бросает исключение — откладываем её на следующий кадр.
+        guard table.window != nil, table.contentSize.height > 0 else {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                if self.table.contentSize.height <= 0 { self.table.reloadData() }
+                self.scrollToBottom(animated: animated)
+            }
+            return
+        }
+        // При automaticDimension высоты известны только после расчёта.
+        table.layoutIfNeeded()
+        guard target.row < table.numberOfRows(inSection: target.section) else { return }
+        table.scrollToRow(at: target, at: .bottom, animated: animated)
     }
 
     /// Сброс смещения пагинации при полной перезагрузке экрана.
@@ -226,6 +267,7 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
 
     @objc private func handleRefresh() {
         setLoading(false)
+        setLoadingMore(false)
         load()
     }
 
@@ -275,12 +317,11 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
         let total = numberOfLoadedItems()
         guard total > 0 else { return }
         // Порог в 4 строки от края: срабатывает заранее, чтобы ленты не «дёргались».
-        if indexPath.row >= total - 4 {
-            loadMore()
-            // Подвал со спиннером увеличивает contentSize, поэтому таблицу
-            // нужно пересчитать — иначе willDisplay больше не придёт.
-            table.layoutIfNeeded()
-        }
+        guard indexPath.row >= total - 4 else { return }
+        // Никаких `table.layoutIfNeeded()`/`tableFooterView = …` здесь:
+        // willDisplay вызывается внутри layout-прохода таблицы, и любая
+        // синхронная перестройка здесь приводит к падению UIKit.
+        loadMore()
     }
 
     /// Сколько всего строк в модели. Для экранов с секциями считаем сумму.
@@ -308,12 +349,30 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {}
+
+    /// Безопасное извлечение ячейки. Принудительный `as!` ронял приложение,
+    /// если тип ячейки расходился с зарегистрированным идентификатором.
+    func dequeueCell<T: UITableViewCell>(_ type: T.Type,
+                                         identifier: String,
+                                         at indexPath: IndexPath) -> T? {
+        return table.dequeueReusableCell(withIdentifier: identifier, for: indexPath) as? T
+    }
 }
 
 extension Array where Element: AnyObject {
     /// Индекс элемента по идентичности — для моделей, не наследующих Equatable.
     func identityIndex(of object: Element) -> Int? {
         return firstIndex(where: { $0 === object })
+    }
+}
+
+extension Collection {
+    /// Безопасный элемент по индексу. Нужен везде, где источник данных
+    /// меняется асинхронно: к моменту `cellForRowAt` UIKit может ещё
+    /// просить старую строку, а массив уже перезаписан.
+    subscript(safe index: Index) -> Element? {
+        guard index >= startIndex, index < endIndex else { return nil }
+        return self[index]
     }
 }
 

@@ -11,7 +11,7 @@ final class ConversationCell: UITableViewCell {
     private let timeLabel = UIFactory.label("", size: 12, color: Theme.textSecondary)
     private let badgeLabel = UIFactory.label("", size: 11, weight: .bold, color: .white)
     private let separator = UIView()
-    private var photoWidth: NSLayoutConstraint?
+    private let photoWidth: NSLayoutConstraint
 
     var unreadCount: Int = 0
 
@@ -64,7 +64,7 @@ final class ConversationCell: UITableViewCell {
             // его ширина 0 и время автоматически занимает это место.
             photoView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
             photoView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
-            photoWidth!,
+            photoWidth,
             photoView.heightAnchor.constraint(equalToConstant: 40),
 
             timeLabel.trailingAnchor.constraint(equalTo: photoView.leadingAnchor, constant: -8),
@@ -92,7 +92,7 @@ final class ConversationCell: UITableViewCell {
 
     func setPhoto(_ url: String?) {
         let hasPhoto = (url?.isEmpty == false)
-        photoWidth?.constant = hasPhoto ? 40 : 0
+        photoWidth.constant = hasPhoto ? 40 : 0
         photoView.isHidden = !hasPhoto
         if hasPhoto {
             photoView.setRemote(url, placeholder: Theme.divider)
@@ -126,6 +126,10 @@ final class ConversationCell: UITableViewCell {
             badgeLabel.text = " \(text) "
         }
         badgeLabel.isHidden = unreadCount <= 0
+        // Непрочитанный диалог в VK выделяется весом имени и цветом превью.
+        let unread = unreadCount > 0
+        titleLabel.font = UIFont.systemFont(ofSize: 16, weight: unread ? .bold : .semibold)
+        messageLabel.textColor = unread ? Theme.textPrimary : Theme.textSecondary
     }
 
     func applyTheme() {

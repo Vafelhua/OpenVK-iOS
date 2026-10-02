@@ -8,6 +8,9 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
 
     private let playerBar = UIView()
     private let playerTitle = UIFactory.label("", size: 14, weight: .semibold)
+    private let playerArtist = UIFactory.label("", size: 12, color: Theme.textSecondary)
+    private let playerTime = UIFactory.label("", size: 11, color: Theme.textSecondary)
+    private let progressView = UIProgressView(progressViewStyle: .default)
     private let playButton = UIButton(type: .system)
     private var playerHeight: NSLayoutConstraint!
     private var playerBottom: NSLayoutConstraint!
@@ -86,6 +89,12 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         topLine.backgroundColor = Theme.divider
         topLine.translatesAutoresizingMaskIntoConstraints = false
 
+        playerTime.textAlignment = .right
+        progressView.trackTintColor = Theme.divider
+        progressView.progressTintColor = Theme.accent
+        progressView.translatesAutoresizingMaskIntoConstraints = false
+        progressView.isHidden = true
+
         playButton.setImage(UIFactory.icon("▶", size: 20), for: .normal)
         playButton.tintColor = Theme.accent
         playButton.addTarget(self, action: #selector(togglePlayback), for: .touchUpInside)
@@ -100,11 +109,15 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         view.addSubview(playerBar)
         playerBar.addSubview(topLine)
         playerBar.addSubview(playerTitle)
+        playerBar.addSubview(playerArtist)
+        playerBar.addSubview(playerTime)
+        playerBar.addSubview(progressView)
         playerBar.addSubview(playButton)
         playerBar.addSubview(closeButton)
 
         playerHeight = playerBar.heightAnchor.constraint(equalToConstant: 0)
-        playerBottom = playerBar.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        // Панель плеера не должна заезжать под home indicator.
+        playerBottom = playerBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
 
         NSLayoutConstraint.activate([
             playerBottom,
@@ -118,8 +131,20 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
             topLine.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale),
 
             playerTitle.leadingAnchor.constraint(equalTo: playerBar.leadingAnchor, constant: 14),
-            playerTitle.centerYAnchor.constraint(equalTo: playerBar.centerYAnchor),
-            playerTitle.trailingAnchor.constraint(lessThanOrEqualTo: playButton.leadingAnchor, constant: -10),
+            playerTitle.topAnchor.constraint(equalTo: playerBar.topAnchor, constant: 8),
+            playerTitle.trailingAnchor.constraint(lessThanOrEqualTo: playerTime.leadingAnchor, constant: -8),
+
+            playerArtist.leadingAnchor.constraint(equalTo: playerTitle.leadingAnchor),
+            playerArtist.topAnchor.constraint(equalTo: playerTitle.bottomAnchor, constant: 1),
+            playerArtist.trailingAnchor.constraint(lessThanOrEqualTo: playerTime.leadingAnchor, constant: -8),
+
+            playerTime.trailingAnchor.constraint(equalTo: closeButton.leadingAnchor, constant: -6),
+            playerTime.centerYAnchor.constraint(equalTo: playerBar.centerYAnchor),
+
+            progressView.leadingAnchor.constraint(equalTo: playerBar.leadingAnchor),
+            progressView.trailingAnchor.constraint(equalTo: playerBar.trailingAnchor),
+            progressView.bottomAnchor.constraint(equalTo: playerBar.bottomAnchor, constant: -2),
+            progressView.heightAnchor.constraint(equalToConstant: 2),
 
             playButton.trailingAnchor.constraint(equalTo: closeButton.leadingAnchor, constant: -6),
             playButton.centerYAnchor.constraint(equalTo: playerBar.centerYAnchor),
@@ -137,9 +162,13 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
     private func showPlayer(for track: VKAudio) {
         currentTrack = track
         playerTitle.text = track.displayName
-        playerHeight.constant = 54
+        playerArtist.text = track.artistText
+        playerHeight.constant = 58
+        progressView.isHidden = false
+        progressView.progress = 0
 
-        guard var urlString = track.url as String?, let url = URL(string: urlString) else {
+        guard var urlString = track.url.isEmpty ? nil : track.url,
+            let url = URL(string: urlString) else {
             presentAlert(title: "Недоступно", message: "Сервер не вернул ссылку на трек.")
             return
         }
@@ -195,9 +224,7 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         let glyph = playing ? "❙❙" : "▶"
         playButton.setImage(UIFactory.icon(glyph, size: 18), for: .normal)
         playButton.tintColor = Theme.accent
-        playButton.setTitle(playerTimeText(), for: .normal)
-        playButton.titleLabel?.font = UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
-        playButton.setTitleColor(Theme.textSecondary, for: .normal)
+        updateProgress()
     }
 
     private func playerTimeText() -> String? {
@@ -206,6 +233,18 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         guard total > 0 else { return nil }
         let current = Int(max(0, CMTimeGetSeconds(player.currentTime())))
         return String(format: "%d:%02d / %d:%02d", current / 60, current % 60, total / 60, total % 60)
+    }
+
+    /// Время и полоса воспроизведения обновляются одним таймером раз в секунду.
+    private func updateProgress() {
+        playerTime.text = playerTimeText()
+        guard let duration = player.currentItem?.duration, duration.isNumeric,
+            CMTimeGetSeconds(duration) > 0 else {
+            progressView.progress = 0
+            return
+        }
+        let fraction = Float(CMTimeGetSeconds(player.currentTime()) / CMTimeGetSeconds(duration))
+        progressView.progress = min(max(fraction, 0), 1)
     }
 
     private func applyDuration(_ duration: CMTime) {
@@ -228,7 +267,10 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         player.replaceCurrentItem(with: nil)
         currentTrack = nil
         playerTitle.text = nil
+        playerArtist.text = nil
+        playerTime.text = nil
         playerHeight.constant = 0
+        progressView.isHidden = true
         statusObservation = nil
         itemStatusObserver = nil
         progressTimer?.invalidate()
@@ -318,15 +360,18 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let track = tracks[indexPath.row]
-        let cell = table.dequeueReusableCell(withIdentifier: MemberCell.reuseId, for: indexPath) as! MemberCell
+        guard let track = tracks[safe: indexPath.row],
+            let cell = dequeueCell(MemberCell.self,
+                                   identifier: MemberCell.reuseId,
+                                   at: indexPath) else { return UITableViewCell() }
         cell.configure(title: track.displayName, subtitle: track.durationText, photo: nil)
         return cell
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         table.deselectRow(at: indexPath, animated: true)
-        showPlayer(for: tracks[indexPath.row])
+        guard let track = tracks[safe: indexPath.row] else { return }
+        showPlayer(for: track)
     }
 
     override func reload() {
@@ -337,6 +382,10 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
         super.applyTheme()
         playerBar.backgroundColor = Theme.card
         playerTitle.textColor = Theme.textPrimary
+        playerArtist.textColor = Theme.textSecondary
+        playerTime.textColor = Theme.textSecondary
+        progressView.trackTintColor = Theme.divider
+        progressView.progressTintColor = Theme.accent
         playButton.tintColor = Theme.accent
     }
 }

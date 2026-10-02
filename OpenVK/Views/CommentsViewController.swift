@@ -66,6 +66,10 @@ final class CommentsViewController: TableScreenController {
         composer.addSubview(sendButton)
 
         composerBottom = composer.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        composer.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0,
+                                                                     leading: 12,
+                                                                     bottom: 0,
+                                                                     trailing: 12)
 
         NSLayoutConstraint.activate([
             composerBottom,
@@ -78,13 +82,13 @@ final class CommentsViewController: TableScreenController {
             topLine.trailingAnchor.constraint(equalTo: composer.trailingAnchor),
             topLine.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale),
 
-            input.leadingAnchor.constraint(equalTo: composer.leadingAnchor, constant: 10),
+            input.leadingAnchor.constraint(equalTo: composer.layoutMarginsGuide.leadingAnchor),
             input.topAnchor.constraint(equalTo: composer.topAnchor, constant: 8),
             input.bottomAnchor.constraint(equalTo: composer.bottomAnchor, constant: -8),
             input.heightAnchor.constraint(equalToConstant: 36),
 
             sendButton.leadingAnchor.constraint(equalTo: input.trailingAnchor, constant: 8),
-            sendButton.trailingAnchor.constraint(equalTo: composer.trailingAnchor, constant: -12),
+            sendButton.trailingAnchor.constraint(equalTo: composer.layoutMarginsGuide.trailingAnchor),
             sendButton.centerYAnchor.constraint(equalTo: input.centerYAnchor)
         ])
 
@@ -135,17 +139,18 @@ final class CommentsViewController: TableScreenController {
                 self.setLoading(false)
                 switch result {
                 case .success(let value):
-                    var fresh = VKComment.readList(value)
-                    if self.commentsOffset > 0 {
+                    let raw = VKComment.readList(value)
+                    if self.isLoadingMore {
                         // Догрузка: фильтруем по id, комментарии любят повторяться
                         // при пересечении страниц.
                         let known = Set(self.comments.map { $0.id })
-                        fresh = fresh.filter { known.contains($0.id) == false }
+                        let fresh = raw.filter { known.contains($0.id) == false }
+                        self.commentsOffset += raw.count
                         self.comments = self.comments + fresh
                         self.setLoadingMore(false)
                     } else {
-                        self.commentsOffset = fresh.count
-                        self.comments = fresh
+                        self.commentsOffset = raw.count
+                        self.comments = raw
                     }
                     self.showStatus(self.comments.isEmpty ? "Комментариев пока нет" : nil)
                     self.reload()
@@ -161,7 +166,6 @@ final class CommentsViewController: TableScreenController {
     override func loadMore() {
         guard isLoadingMore == false, isLoading == false, comments.isEmpty == false else { return }
         setLoadingMore(true)
-        commentsOffset += 30
         load()
     }
 
@@ -202,8 +206,10 @@ final class CommentsViewController: TableScreenController {
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let comment = comments[indexPath.row]
-        let cell = table.dequeueReusableCell(withIdentifier: MemberCell.reuseId, for: indexPath) as! MemberCell
+        guard let comment = comments[safe: indexPath.row],
+            let cell = dequeueCell(MemberCell.self,
+                                   identifier: MemberCell.reuseId,
+                                   at: indexPath) else { return UITableViewCell() }
         cell.configure(title: comment.text, subtitle: comment.subtitle, photo: comment.authorPhoto)
         return cell
     }
