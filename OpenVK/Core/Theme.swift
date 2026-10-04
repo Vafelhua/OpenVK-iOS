@@ -15,48 +15,26 @@ extension UIColor {
     }
 }
 
-/// Тема приложения.
+/// Оформление приложения — один вариант, повторяющий клиент VK 6.56.
 ///
-/// Поддерживаются два независимых измерения:
-/// * `Style` — набор цветов и метрик (классический VK 6.56 или современный);
-/// * светлая/тёмная — внутри каждого стиля своя палитра.
+/// Признаки оригинала, которые здесь воспроизводятся:
+/// * шапка и таб-бар — фирменный синий #4A76A8, заголовки белые;
+/// * фон страницы — холодный серо-голубой, содержимое — белые полосы;
+/// * разделители в одну точку, между полосами видно фон;
+/// * углы прямые: у карточек, аватаров и кнопок нет скруглений;
+/// * ни одной тени и ни одного градиента.
 ///
 /// iOS 12 не умеет системную тёмную тему, поэтому цвета применяются вручную
 /// и перечитываются при смене темы (`.openVKThemeDidChange`).
 enum Theme {
-    enum Style: String {
-        /// Оформление клиента VK 6.56: сине-серая шапка, плоские списки,
-        /// тонкие рамки, почти прямые углы, ссылки синего цвета.
-        case vk56
-        /// Нынешний VK: карточки со скруглением, крупные заголовки.
-        case modern
-
-        var title: String {
-            switch self {
-            case .vk56: return "VK 6.56"
-            case .modern: return "Современный"
-            }
-        }
-
-        var next: Style {
-            return self == .vk56 ? .modern : .vk56
-        }
-    }
-
     // MARK: - Состояние
 
-    static var style: Style {
-        get { return Style(rawValue: LocalSettings.shared.style) ?? .vk56 }
-        set { LocalSettings.shared.style = newValue.rawValue }
-    }
-
-    static var isVK56: Bool { return style == .vk56 }
+    /// Тёмное оформление — тот же VK 6.56, но с тёмно-синими полосами.
     static var isDark: Bool { return LocalSettings.shared.isDarkTheme }
 
     // MARK: - Палитра
 
-    /// Набор цветов одного варианта оформления. Вынесен в отдельную структуру,
-    /// чтобы вариантов было ровно четыре и каждый был заполнен целиком.
+    /// Набор цветов одного варианта оформления.
     struct Palette {
         let background: UIColor
         let card: UIColor
@@ -76,72 +54,25 @@ enum Theme {
         let error: UIColor
         let avatarPlaceholder: UIColor
         let logout: UIColor
-        /// Непрочитанные счётчики и бейджи: в тёмном VK 6.56 синий глухой.
         let badge: UIColor
     }
 
-    private static let modernLight = Palette(
-        background: UIColor(hex: 0xF2F3F5),
-        card: .white,
-        navRail: .white,
-        textPrimary: UIColor(hex: 0x0F1720),
-        textSecondary: UIColor(hex: 0x818C99),
-        divider: UIColor(hex: 0xE3E6E8),
-        border: UIColor(hex: 0xE3E6E8),
-        incoming: .white,
-        incomingText: UIColor(hex: 0x0F1720),
-        outgoing: UIColor(hex: 0x0077FF),
-        outgoingText: .white,
-        accent: UIColor(hex: 0x0077FF),
-        button: UIColor(hex: 0x0077FF),
-        buttonPressed: UIColor(hex: 0x0066E0),
-        buttonText: .white,
-        error: UIColor(hex: 0xE64646),
-        avatarPlaceholder: UIColor(hex: 0xD8E3F2),
-        logout: UIColor(hex: 0x7B4B4B),
-        badge: UIColor(hex: 0x0077FF)
-    )
-
-    private static let modernDark = Palette(
-        background: UIColor(hex: 0x19191A),
-        card: UIColor(hex: 0x242527),
-        navRail: UIColor(hex: 0x1F2021),
-        textPrimary: .white,
-        textSecondary: UIColor(hex: 0x7F8285),
-        divider: UIColor(hex: 0x2E2F31),
-        border: UIColor(hex: 0x2E2F31),
-        incoming: UIColor(hex: 0x2E2F31),
-        incomingText: .white,
-        outgoing: UIColor(hex: 0x0077FF),
-        outgoingText: .white,
-        accent: UIColor(hex: 0x0077FF),
-        button: UIColor(hex: 0x0077FF),
-        buttonPressed: UIColor(hex: 0x0066E0),
-        buttonText: .white,
-        error: UIColor(hex: 0xE64646),
-        avatarPlaceholder: UIColor(hex: 0x2C2E30),
-        logout: UIColor(hex: 0x8A5A5A),
-        badge: UIColor(hex: 0x0077FF)
-    )
-
-    /// Классическая палитра VK 6.56: фирменный сине-серый #45688E в шапке,
-    /// ссылки #45688E, кнопки #5B7FA6, серый фон страницы и тонкие рамки.
     private static let vk56Light = Palette(
         background: UIColor(hex: 0xE7EAED),
-        card: .white,
+        card: UIColor(hex: 0xFFFFFF),
         navRail: UIColor(hex: 0x45688E),
         textPrimary: UIColor(hex: 0x2B2B2B),
         textSecondary: UIColor(hex: 0x7A7E83),
         divider: UIColor(hex: 0xD8DCE0),
         border: UIColor(hex: 0xCDD2D7),
-        incoming: .white,
+        incoming: UIColor(hex: 0xFFFFFF),
         incomingText: UIColor(hex: 0x2B2B2B),
         outgoing: UIColor(hex: 0xD8EAF7),
         outgoingText: UIColor(hex: 0x2B2B2B),
         accent: UIColor(hex: 0x45688E),
         button: UIColor(hex: 0x5B7FA6),
         buttonPressed: UIColor(hex: 0x45688E),
-        buttonText: .white,
+        buttonText: UIColor(hex: 0xFFFFFF),
         error: UIColor(hex: 0xC0392B),
         avatarPlaceholder: UIColor(hex: 0xD5DCE3),
         logout: UIColor(hex: 0x8A4B4B),
@@ -159,11 +90,11 @@ enum Theme {
         incoming: UIColor(hex: 0x3E444B),
         incomingText: UIColor(hex: 0xF0F2F4),
         outgoing: UIColor(hex: 0x4A6E8C),
-        outgoingText: .white,
+        outgoingText: UIColor(hex: 0xFFFFFF),
         accent: UIColor(hex: 0x7FA6CC),
         button: UIColor(hex: 0x5B7FA6),
         buttonPressed: UIColor(hex: 0x45688E),
-        buttonText: .white,
+        buttonText: UIColor(hex: 0xFFFFFF),
         error: UIColor(hex: 0xD0605A),
         avatarPlaceholder: UIColor(hex: 0x3A4046),
         logout: UIColor(hex: 0x9A6060),
@@ -171,12 +102,7 @@ enum Theme {
     )
 
     private static var current: Palette {
-        switch (style, isDark) {
-        case (.modern, false): return modernLight
-        case (.modern, true): return modernDark
-        case (.vk56, false): return vk56Light
-        case (.vk56, true): return vk56Dark
-        }
+        return isDark ? vk56Dark : vk56Light
     }
 
     // MARK: - Цвета
@@ -201,28 +127,24 @@ enum Theme {
     static var logout: UIColor { return current.logout }
     static var badge: UIColor { return current.badge }
 
-    static var composerBackground: UIColor { return current.card }
+    static var composerBackground: UIColor { return current.background }
     static var composerBorder: UIColor { return current.divider }
 
     // MARK: - Метрики
 
-    /// Скругление карточек и пузырей: у VK 6.56 углы почти прямые.
-    static var cardRadius: CGFloat { return isVK56 ? 2 : 10 }
-    /// В классическом стиле карточки обведены тонкой рамкой вместо тени.
-    static var cardBorderWidth: CGFloat { return isVK56 ? 1 : 0 }
-    /// Радиус пузыря сообщения.
-    static var bubbleRadius: CGFloat { return isVK56 ? 3 : 14 }
-    /// Радиус аватара: круг в современном стиле, почти прямой угол в VK 6.56.
-    static func avatarRadius(_ size: CGFloat) -> CGFloat {
-        return isVK56 ? 2 : size / 2
-    }
-    /// Отступ между строками списка.
-    static var rowInset: CGFloat { return 12 }
-    /// У классического VK шапка и таб-бар цветные, поэтому статус-бар всегда
-    /// со светлыми символами.
-    static var isChromeColored: Bool { return isVK56 }
-    /// Крупные заголовки навигации есть только у современного стиля.
-    static var supportsLargeTitles: Bool { return isVK56 == false }
+    /// У клиента 6.56 углы почти прямые — скруглений нет ни у чего.
+    static let cardRadius: CGFloat = 0
+    /// Полосы разделены фоном страницы, а не обводкой.
+    static let cardBorderWidth: CGFloat = 0
+    /// У пузырей и аватаров остаётся минимальное скругление — так выглядел оригинал.
+    static let bubbleRadius: CGFloat = 2
+    static func avatarRadius(_ size: CGFloat) -> CGFloat { return 2 }
+    /// Горизонтальные отступы внутри строки.
+    static let rowInset: CGFloat = 12
+    /// Крупных заголовков в клиенте 6.56 не было.
+    static let supportsLargeTitles: Bool = false
+    /// Толщина линии в один экранный пиксель.
+    static var hairline: CGFloat { return 1 / UIScreen.main.scale }
 
     // MARK: - Оформление системных элементов
 
@@ -240,40 +162,26 @@ enum Theme {
     }
 
     static func styleNavigationBar(_ bar: UINavigationBar) {
-        // В VK 6.56 шапка синяя, поэтому заголовок и кнопки — белые.
-        let onColoredChrome = isChromeColored
         bar.barTintColor = navRail
-        bar.tintColor = onColoredChrome ? .white : accent
+        bar.tintColor = .white
         bar.isTranslucent = false
-        bar.shadowImage = makeDividerImage()
+        // В оригинале под синей шапкой идёт светлая линия в один пиксель.
+        bar.shadowImage = makeLineImage(color: navRail.lighter(by: 0.18), height: hairline)
         bar.prefersLargeTitles = supportsLargeTitles
-
-        let title: [NSAttributedString.Key: Any] = [
-            .foregroundColor: onColoredChrome ? UIColor.white : textPrimary,
+        bar.titleTextAttributes = [
+            .foregroundColor: UIColor.white,
             .font: UIFont.boldSystemFont(ofSize: 17)
         ]
-        bar.titleTextAttributes = title
-        if supportsLargeTitles {
-            bar.largeTitleTextAttributes = [
-                .foregroundColor: textPrimary,
-                .font: UIFont.boldSystemFont(ofSize: 30)
-            ]
-        } else {
-            bar.largeTitleTextAttributes = title
-        }
+        bar.largeTitleTextAttributes = bar.titleTextAttributes
     }
 
     static func styleTabBar(_ bar: UITabBar) {
-        let onColoredChrome = isChromeColored
         bar.barTintColor = navRail
-        bar.tintColor = onColoredChrome ? .white : accent
+        bar.tintColor = .white
         bar.isTranslucent = false
-        // На синей подложке невыбранные пункты нельзя красить серым —
-        // в классическом VK они просто чуть тусклее белого.
-        bar.unselectedItemTintColor = onColoredChrome
-            ? UIColor.white.withAlphaComponent(0.72)
-            : textSecondary
-        bar.shadowImage = makeDividerImage()
+        // На синей подложке невыбранные пункты просто чуть тусклее белого.
+        bar.unselectedItemTintColor = UIColor.white.withAlphaComponent(0.75)
+        bar.shadowImage = makeLineImage(color: navRail.lighter(by: 0.18), height: hairline)
     }
 
     static func applyGlobalAppearance() {
@@ -287,23 +195,33 @@ enum Theme {
         NotificationCenter.default.post(name: .openVKThemeDidChange, object: nil)
     }
 
-    /// Цвет системного статус-бара под текущую тему. На iOS 12 работает
-    /// только при `UIViewControllerBasedStatusBarAppearance = NO` в Info.plist.
+    /// Цвет системного статус-бара. На iOS 12 работает только при
+    /// `UIViewControllerBasedStatusBarAppearance = NO` в Info.plist.
     static func applyStatusBarStyle() {
-        if isChromeColored {
-            UIApplication.shared.statusBarStyle = .lightContent
-        } else {
-            UIApplication.shared.statusBarStyle = isDark ? .lightContent : .default
-        }
+        UIApplication.shared.statusBarStyle = .lightContent
     }
 
-    private static func makeDividerImage() -> UIImage? {
-        let size = CGSize(width: 1, height: 1)
+    // MARK: - Вспомогательное
+
+    private static func makeLineImage(color: UIColor, height: CGFloat) -> UIImage? {
+        let size = CGSize(width: 1, height: max(height, 1))
         UIGraphicsBeginImageContextWithOptions(size, false, 0)
-        divider.setFill()
+        color.setFill()
         UIRectFill(CGRect(origin: .zero, size: size))
         let image = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
         return image?.resizableImage(withCapInsets: .zero, resizingMode: .stretch)
+    }
+}
+
+extension UIColor {
+    /// Осветление цвета — для линии под шапкой и рамок.
+    func lighter(by amount: CGFloat) -> UIColor {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        guard getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return self }
+        return UIColor(red: min(red + amount, 1),
+                       green: min(green + amount, 1),
+                       blue: min(blue + amount, 1),
+                       alpha: alpha)
     }
 }

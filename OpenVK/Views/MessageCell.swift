@@ -109,7 +109,6 @@ final class MessageCell: UITableViewCell {
 final class DateSeparatorCell: UITableViewCell {
     static let reuseId = "DateSeparatorCell"
 
-    private let pill = UIView()
     private let label = UIFactory.label("", size: 12, weight: .medium, color: Theme.textSecondary)
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -117,21 +116,15 @@ final class DateSeparatorCell: UITableViewCell {
         selectionStyle = .none
         contentView.backgroundColor = .clear
 
-        pill.layer.cornerRadius = Theme.cardRadius
-        pill.translatesAutoresizingMaskIntoConstraints = false
+        label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
-        pill.addSubview(label)
-        contentView.addSubview(pill)
+        contentView.addSubview(label)
 
         NSLayoutConstraint.activate([
-            pill.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-            pill.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
-            pill.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
-
-            label.topAnchor.constraint(equalTo: pill.topAnchor, constant: 3),
-            label.bottomAnchor.constraint(equalTo: pill.bottomAnchor, constant: -3),
-            label.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 12),
-            label.trailingAnchor.constraint(equalTo: pill.trailingAnchor, constant: -12)
+            label.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
+            label.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+            label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
+            label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12)
         ])
 
         applyTheme()
@@ -146,7 +139,6 @@ final class DateSeparatorCell: UITableViewCell {
     }
 
     func applyTheme() {
-        pill.backgroundColor = Theme.divider
         label.textColor = Theme.textSecondary
     }
 }

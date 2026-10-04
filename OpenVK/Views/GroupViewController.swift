@@ -28,8 +28,8 @@ final class GroupViewController: WallScreenController {
         headerParts = parts
 
         addActionRow([
-            (title: "Написать", action: #selector(openChat), color: Theme.accent),
-            (title: "В браузере", action: #selector(openInBrowser), color: Theme.accent)
+            (title: "Написать", action: #selector(openChat)),
+            (title: "В браузере", action: #selector(openInBrowser))
         ])
 
         loadMembersCount()

@@ -76,7 +76,7 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         input.font = UIFont.systemFont(ofSize: 16)
         input.textColor = Theme.textPrimary
         input.backgroundColor = Theme.card
-        input.layer.cornerRadius = 12
+        input.layer.cornerRadius = Theme.cardRadius
         input.layer.masksToBounds = true
         input.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
         input.isScrollEnabled = true
@@ -162,25 +162,23 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
                                                object: nil)
     }
 
-    /// Круглая кнопка публикации вместо постоянной нижней строки.
+    /// Кнопка публикации: в клиенте 6.56 кнопки плоские, квадратные и без тени.
     private func buildComposeButton() {
-        composeButton.setImage(UIFactory.icon("✎", size: 24), for: .normal)
+        composeButton.setImage(UIFactory.icon("✎", size: 22), for: .normal)
         composeButton.tintColor = .white
-        composeButton.backgroundColor = Theme.accent
-        // В стиле VK 6.56 кнопка почти прямоугольная, в современном — круглая.
-        composeButton.layer.cornerRadius = Theme.isVK56 ? 4 : 28
-        composeButton.layer.shadowOpacity = 0.2
-        composeButton.layer.shadowRadius = 6
-        composeButton.layer.shadowOffset = CGSize(width: 0, height: 3)
+        composeButton.backgroundColor = Theme.button
+        composeButton.layer.cornerRadius = Theme.cardRadius
+        composeButton.layer.borderWidth = 1
+        composeButton.layer.borderColor = Theme.buttonPressed.cgColor
         composeButton.translatesAutoresizingMaskIntoConstraints = false
         composeButton.addTarget(self, action: #selector(toggleComposer), for: .touchUpInside)
         view.addSubview(composeButton)
 
         NSLayoutConstraint.activate([
-            composeButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-            composeButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
-            composeButton.widthAnchor.constraint(equalToConstant: 56),
-            composeButton.heightAnchor.constraint(equalToConstant: 56)
+            composeButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
+            composeButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
+            composeButton.widthAnchor.constraint(equalToConstant: 44),
+            composeButton.heightAnchor.constraint(equalToConstant: 44)
         ])
     }
 
@@ -241,7 +239,7 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         // Повторный выбор заменяет превью, а не добавляет второе:
         // иначе в композере накапливались дубли одного и того же фото.
         clearPreview()
-        let view = RemoteImageView(cornerRadius: 10)
+        let view = RemoteImageView(cornerRadius: Theme.cardRadius)
         view.image = image
         view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -428,8 +426,7 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         composer.backgroundColor = Theme.composerBackground
         input.textColor = Theme.textPrimary
         input.backgroundColor = Theme.card
-        input.layer.cornerRadius = Theme.isVK56 ? 2 : 12
-        composeButton.backgroundColor = Theme.accent
-        composeButton.layer.cornerRadius = Theme.isVK56 ? 4 : 28
+        input.layer.cornerRadius = Theme.cardRadius
+        composeButton.backgroundColor = Theme.button
     }
 }

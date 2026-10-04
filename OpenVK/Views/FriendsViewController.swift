@@ -18,11 +18,8 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
                                                             target: self,
                                                             action: #selector(refreshTapped))
 
-        let bar = UISearchBar()
+        let bar = UIFactory.searchBar(placeholder: "Поиск по друзьям")
         bar.delegate = self
-        bar.placeholder = "Поиск по друзьям"
-        bar.searchBarStyle = .minimal
-        bar.sizeToFit()
         table.tableHeaderView = bar
         searchBar = bar
 

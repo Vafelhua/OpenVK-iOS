@@ -142,18 +142,14 @@ class WallScreenController: TableScreenController {
     }
 
     /// Ряд кнопок-действий под шапкой.
-    func addActionRow(_ actions: [(title: String, action: Selector, color: UIColor)]) {
+    func addActionRow(_ actions: [(title: String, action: Selector)]) {
         let stack = UIStackView()
         stack.axis = .horizontal
         stack.distribution = .fillEqually
         stack.spacing = 8
 
         for item in actions {
-            let button = UIButton(type: .system)
-            button.setTitle(item.title, for: .normal)
-            button.setTitleColor(item.color, for: .normal)
-            button.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
-            button.backgroundColor = Theme.composerBackground
+            let button = UIFactory.primaryButton(item.title)
             button.addTarget(self, action: item.action, for: .touchUpInside)
             stack.addArrangedSubview(button)
         }
@@ -236,13 +232,6 @@ class WallScreenController: TableScreenController {
         return "OpenVK"
     }
 
-    func authorScreenName(for post: VKPost) -> String? {
-        if post.ownerIsGroup {
-            return groups[post.groupId]?.screenName
-        }
-        return users[post.fromId != 0 ? post.fromId : post.ownerId]?.screenName
-    }
-
     func authorPhoto(for post: VKPost) -> String? {
         if post.ownerIsGroup {
             return groups[post.groupId]?.photoMax
@@ -263,7 +252,6 @@ class WallScreenController: TableScreenController {
                                    at: indexPath) else { return UITableViewCell() }
         cell.configure(post: post,
                        authorName: authorName(for: post),
-                       authorScreenName: authorScreenName(for: post),
                        authorPhoto: authorPhoto(for: post))
 
         cell.onLike = { [weak self] in
@@ -319,7 +307,9 @@ class WallScreenController: TableScreenController {
         headerView.backgroundColor = Theme.card
         for group in actionButtonGroups {
             for button in group {
-                button.backgroundColor = Theme.composerBackground
+                button.backgroundColor = Theme.button
+                button.setTitleColor(Theme.buttonText, for: .normal)
+                button.setTitleColor(Theme.buttonText.withAlphaComponent(0.6), for: .disabled)
             }
         }
         recolorLabels(in: headerStack)

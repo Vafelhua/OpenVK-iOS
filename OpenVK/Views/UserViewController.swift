@@ -38,18 +38,17 @@ final class UserViewController: WallScreenController {
         actions.distribution = .fillEqually
         actions.spacing = 8
 
-        let messageButton = UIButton(type: .system)
-        messageButton.setTitle("Написать", for: .normal)
-        messageButton.setTitleColor(Theme.accent, for: .normal)
-        messageButton.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
-        messageButton.backgroundColor = Theme.composerBackground
+        let messageButton = UIFactory.primaryButton("Написать")
         messageButton.addTarget(self, action: #selector(openChat), for: .touchUpInside)
         actions.addArrangedSubview(messageButton)
 
         addButton.setTitle("Добавить в друзья", for: .normal)
-        addButton.setTitleColor(Theme.accent, for: .normal)
-        addButton.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
-        addButton.backgroundColor = Theme.composerBackground
+        addButton.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        addButton.backgroundColor = Theme.button
+        addButton.setTitleColor(Theme.buttonText, for: .normal)
+        addButton.layer.borderWidth = 1
+        addButton.layer.borderColor = Theme.buttonPressed.cgColor
+        addButton.contentEdgeInsets = UIEdgeInsets(top: 7, left: 14, bottom: 7, right: 14)
         addButton.addTarget(self, action: #selector(addFriend), for: .touchUpInside)
         actions.addArrangedSubview(addButton)
 
@@ -79,7 +78,6 @@ final class UserViewController: WallScreenController {
                 self.isFriend = found
                 self.addButton.isEnabled = true
                 self.addButton.setTitle(found ? "Вы друзья" : "Добавить в друзья", for: .normal)
-                self.addButton.setTitleColor(found ? Theme.textSecondary : Theme.accent, for: .normal)
             }
         }
     }
@@ -97,9 +95,12 @@ final class UserViewController: WallScreenController {
                 case .success:
                     self.isFriend = true
                     self.addButton.setTitle("Вы друзья", for: .normal)
+                    self.addButton.backgroundColor = Theme.composerBackground
                     self.addButton.setTitleColor(Theme.textSecondary, for: .normal)
                 case .failure(let error):
                     self.addButton.setTitle("Добавить в друзья", for: .normal)
+                    self.addButton.backgroundColor = Theme.button
+                    self.addButton.setTitleColor(Theme.buttonText, for: .normal)
                     self.presentAlert(title: "Ошибка", message: error.message)
                 }
             }

@@ -56,7 +56,10 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
         table.delegate = self
         table.rowHeight = UITableView.automaticDimension
         table.estimatedRowHeight = 76
-        table.separatorInset = UIEdgeInsets(top: 0, left: 64, bottom: 0, right: 0)
+        // Разделители рисуют сами ячейки — стандартные линии UITableView
+        // в клиенте 6.56 не использовались.
+        table.separatorStyle = .none
+        table.separatorInset = .zero
         table.backgroundColor = Theme.background
         table.register(MemberCell.self, forCellReuseIdentifier: MemberCell.reuseId)
         table.register(ConversationCell.self, forCellReuseIdentifier: ConversationCell.reuseId)
@@ -87,10 +90,10 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
         scrollToBottomButton.setImage(UIFactory.icon("↓", size: 20), for: .normal)
         scrollToBottomButton.backgroundColor = Theme.card
         scrollToBottomButton.tintColor = Theme.accent
-        scrollToBottomButton.layer.cornerRadius = 20
-        scrollToBottomButton.layer.shadowOpacity = 0.15
-        scrollToBottomButton.layer.shadowRadius = 4
-        scrollToBottomButton.layer.shadowOffset = CGSize(width: 0, height: 2)
+        // В 6.56 кнопки плоские: прямоугольная заливка, контур, без тени.
+        scrollToBottomButton.layer.cornerRadius = Theme.cardRadius
+        scrollToBottomButton.layer.borderWidth = 1
+        scrollToBottomButton.layer.borderColor = Theme.border.cgColor
         scrollToBottomButton.isHidden = true
         scrollToBottomButton.addTarget(self, action: #selector(scrollToBottomTapped), for: .touchUpInside)
         scrollToBottomButton.translatesAutoresizingMaskIntoConstraints = false

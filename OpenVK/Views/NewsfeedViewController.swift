@@ -217,12 +217,9 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         searchGeneration += 1
         setLoadingMore(false)
         if enabled {
-            let bar = UISearchBar()
+            let bar = UIFactory.searchBar(placeholder: "Люди и записи")
             bar.delegate = self
-            bar.placeholder = "Люди и записи"
-            bar.searchBarStyle = .minimal
             bar.showsCancelButton = true
-            bar.sizeToFit()
             table.tableHeaderView = bar
             searchBar = bar
             posts = []
@@ -297,7 +294,6 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
                                    at: indexPath) else { return UITableViewCell() }
         cell.configure(post: post,
                        authorName: authorName(for: post),
-                       authorScreenName: authorScreenName(for: post),
                        authorPhoto: authorPhoto(for: post))
 
         cell.onLike = { [weak self] in
@@ -366,13 +362,6 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
             return user.name
         }
         return "OpenVK"
-    }
-
-    private func authorScreenName(for post: VKPost) -> String? {
-        if post.ownerIsGroup {
-            return groups[post.groupId]?.screenName
-        }
-        return users[post.fromId != 0 ? post.fromId : post.ownerId]?.screenName
     }
 
     private func authorPhoto(for post: VKPost) -> String? {

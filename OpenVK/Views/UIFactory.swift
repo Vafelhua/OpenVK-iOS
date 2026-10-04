@@ -16,8 +16,7 @@ enum UIFactory {
     }
 
     static func avatar(_ size: CGFloat, rounded: Bool = true) -> RemoteImageView {
-        // В стиле VK 6.56 аватар квадратный с едва заметным скруглением,
-        // в современном — круглый.
+        // В клиенте 6.56 аватары квадратные, скругление минимальное.
         let view = RemoteImageView(cornerRadius: rounded ? Theme.avatarRadius(size) : 0)
         view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
@@ -126,6 +125,33 @@ enum UIFactory {
         return controller
     }
 
+    /// Поле поиска в стиле 6.56: белая плашка с тонкой рамкой на сером фоне,
+    /// без скругления и тени. Системный `UISearchBar` на iOS 12 округляет поле,
+    /// поэтому текстовое поле перекрашивается вручную.
+    static func searchBar(placeholder: String) -> UISearchBar {
+        let bar = UISearchBar()
+        bar.placeholder = placeholder
+        bar.searchBarStyle = .minimal
+        bar.barTintColor = Theme.card
+        bar.backgroundColor = Theme.background
+        bar.isTranslucent = false
+        bar.tintColor = Theme.accent
+        bar.sizeToFit()
+
+        let field: UITextField?
+        if #available(iOS 13.0, *) {
+            field = bar.searchTextField
+        } else {
+            field = bar.subviews.first?.subviews.first(where: { $0 is UITextField }) as? UITextField
+        }
+        field?.backgroundColor = Theme.card
+        field?.layer.cornerRadius = 0
+        field?.layer.borderWidth = 1
+        field?.layer.borderColor = Theme.border.cgColor
+        field?.leftView?.tintColor = Theme.textSecondary
+        return bar
+    }
+
     static func textField(placeholder: String, secure: Bool = false) -> UITextField {
         let field = UITextField()
         field.placeholder = placeholder
@@ -170,8 +196,8 @@ enum UIFactory {
         return button
     }
 
-    /// Обводит карточку/кнопку по текущему стилю: в VK 6.56 — тонкая рамка,
-    /// в современном стиле — ничего.
+    /// Полосы в клиенте 6.56 разделены фоном страницы, а не обводкой, поэтому
+    /// рамка не рисуется.
     static func applyCardBorder(to view: UIView) {
         view.layer.borderWidth = Theme.cardBorderWidth
         if Theme.cardBorderWidth > 0 {

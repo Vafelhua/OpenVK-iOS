@@ -348,11 +348,8 @@ final class MusicViewController: TableScreenController, UISearchBarDelegate {
                                                             target: self,
                                                             action: #selector(refreshTapped))
 
-        let bar = UISearchBar()
+        let bar = UIFactory.searchBar(placeholder: "Поиск музыки")
         bar.delegate = self
-        bar.placeholder = "Поиск музыки"
-        bar.searchBarStyle = .minimal
-        bar.sizeToFit()
         table.tableHeaderView = bar
         searchBar = bar
 
