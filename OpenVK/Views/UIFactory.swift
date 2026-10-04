@@ -16,7 +16,9 @@ enum UIFactory {
     }
 
     static func avatar(_ size: CGFloat, rounded: Bool = true) -> RemoteImageView {
-        let view = RemoteImageView(cornerRadius: rounded ? size / 2 : 0)
+        // В стиле VK 6.56 аватар квадратный с едва заметным скруглением,
+        // в современном — круглый.
+        let view = RemoteImageView(cornerRadius: rounded ? Theme.avatarRadius(size) : 0)
         view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             view.widthAnchor.constraint(equalToConstant: size),
@@ -151,5 +153,29 @@ enum UIFactory {
         button.contentHorizontalAlignment = .left
         button.translatesAutoresizingMaskIntoConstraints = false
         return button
+    }
+
+    /// Кнопка-действие с синим фоном — как кнопки «Отправить»/«Подписаться»
+    /// в клиенте VK 6.56: сплошная заливка, тонкий тёмный контур, скругление 2pt.
+    static func primaryButton(_ title: String) -> UIButton {
+        let button = UIButton(type: .custom)
+        button.setTitle(title, for: .normal)
+        button.setTitleColor(Theme.buttonText, for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        button.backgroundColor = Theme.button
+        button.layer.cornerRadius = Theme.cardRadius
+        button.layer.borderWidth = Theme.cardBorderWidth
+        button.layer.borderColor = Theme.border.cgColor
+        button.contentEdgeInsets = UIEdgeInsets(top: 7, left: 14, bottom: 7, right: 14)
+        return button
+    }
+
+    /// Обводит карточку/кнопку по текущему стилю: в VK 6.56 — тонкая рамка,
+    /// в современном стиле — ничего.
+    static func applyCardBorder(to view: UIView) {
+        view.layer.borderWidth = Theme.cardBorderWidth
+        if Theme.cardBorderWidth > 0 {
+            view.layer.borderColor = Theme.border.cgColor
+        }
     }
 }

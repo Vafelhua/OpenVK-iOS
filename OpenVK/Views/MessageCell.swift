@@ -19,11 +19,12 @@ final class MessageCell: UITableViewCell {
         contentView.backgroundColor = .clear
 
         bubble.translatesAutoresizingMaskIntoConstraints = false
-        bubble.layer.cornerRadius = 14
+        bubble.layer.cornerRadius = Theme.bubbleRadius
         bubble.layer.masksToBounds = true
+        UIFactory.applyCardBorder(to: bubble)
         photoView.translatesAutoresizingMaskIntoConstraints = false
         photoView.contentMode = .scaleAspectFill
-        photoView.layer.cornerRadius = 10
+        photoView.layer.cornerRadius = Theme.cardRadius
         photoView.layer.masksToBounds = true
         timeLabel.textAlignment = .right
 
@@ -76,6 +77,8 @@ final class MessageCell: UITableViewCell {
         bubbleLabel.text = message.text
         bubbleLabel.isHidden = message.text.isEmpty
         timeLabel.text = TimeHelper.clock(message.date)
+        bubble.layer.cornerRadius = Theme.bubbleRadius
+        UIFactory.applyCardBorder(to: bubble)
 
         if let photo = message.photo {
             photoView.isHidden = false
@@ -92,8 +95,8 @@ final class MessageCell: UITableViewCell {
 
         if message.isOutgoing {
             bubble.backgroundColor = Theme.outgoing
-            bubbleLabel.textColor = .white
-            timeLabel.textColor = UIColor.white.withAlphaComponent(0.75)
+            bubbleLabel.textColor = Theme.outgoingText
+            timeLabel.textColor = Theme.outgoingText.withAlphaComponent(0.7)
         } else {
             bubble.backgroundColor = Theme.incoming
             bubbleLabel.textColor = Theme.incomingText
@@ -114,7 +117,7 @@ final class DateSeparatorCell: UITableViewCell {
         selectionStyle = .none
         contentView.backgroundColor = .clear
 
-        pill.layer.cornerRadius = 11
+        pill.layer.cornerRadius = Theme.cardRadius
         pill.translatesAutoresizingMaskIntoConstraints = false
         label.translatesAutoresizingMaskIntoConstraints = false
         pill.addSubview(label)

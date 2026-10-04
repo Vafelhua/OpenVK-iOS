@@ -283,6 +283,7 @@ class TableScreenController: UIViewController, UITableViewDataSource, UITableVie
     func applyTheme() {
         Theme.decorate(self)
         table.backgroundColor = Theme.background
+        table.separatorColor = Theme.divider
         statusLabel.textColor = statusIsError ? Theme.error : Theme.textSecondary
         spinner.color = Theme.textSecondary
         footerSpinner.color = Theme.textSecondary

@@ -167,7 +167,8 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         composeButton.setImage(UIFactory.icon("✎", size: 24), for: .normal)
         composeButton.tintColor = .white
         composeButton.backgroundColor = Theme.accent
-        composeButton.layer.cornerRadius = 28
+        // В стиле VK 6.56 кнопка почти прямоугольная, в современном — круглая.
+        composeButton.layer.cornerRadius = Theme.isVK56 ? 4 : 28
         composeButton.layer.shadowOpacity = 0.2
         composeButton.layer.shadowRadius = 6
         composeButton.layer.shadowOffset = CGSize(width: 0, height: 3)
@@ -427,6 +428,8 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         composer.backgroundColor = Theme.composerBackground
         input.textColor = Theme.textPrimary
         input.backgroundColor = Theme.card
+        input.layer.cornerRadius = Theme.isVK56 ? 2 : 12
         composeButton.backgroundColor = Theme.accent
+        composeButton.layer.cornerRadius = Theme.isVK56 ? 4 : 28
     }
 }

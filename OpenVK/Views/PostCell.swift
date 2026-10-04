@@ -37,6 +37,7 @@ final class PostCell: UITableViewCell {
         card.translatesAutoresizingMaskIntoConstraints = false
         card.layer.cornerRadius = Theme.cardRadius
         card.layer.masksToBounds = true
+        UIFactory.applyCardBorder(to: card)
 
         photoView.translatesAutoresizingMaskIntoConstraints = false
         photoView.contentMode = .scaleAspectFill
@@ -206,6 +207,10 @@ final class PostCell: UITableViewCell {
     }
 
     func applyTheme() {
+        // Радиусы и рамка зависят от стиля, поэтому пересчитываются при смене темы.
+        card.layer.cornerRadius = Theme.cardRadius
+        photoView.layer.cornerRadius = Theme.cardRadius
+        UIFactory.applyCardBorder(to: card)
         card.backgroundColor = Theme.card
         contentView.backgroundColor = Theme.background
         authorLabel.textColor = Theme.textPrimary

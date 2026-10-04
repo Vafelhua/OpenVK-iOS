@@ -7,6 +7,8 @@ final class MemberCell: UITableViewCell {
     let avatarView = UIFactory.avatar(48)
     private let titleLabel = UIFactory.label("", size: 16, weight: .semibold)
     private let subtitleLabel = UIFactory.label("", size: 13, color: Theme.textSecondary)
+    private let separator = UIView()
+    private var separatorLeading: NSLayoutConstraint!
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -28,6 +30,9 @@ final class MemberCell: UITableViewCell {
         contentView.addSubview(textStack)
         contentView.addSubview(separator)
 
+        // В стиле VK 6.56 разделитель во всю ширину, в современном — от текста.
+        separatorLeading = separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor,
+                                                              constant: Theme.isVK56 ? 0 : 72)
         NSLayoutConstraint.activate([
             avatarView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
             avatarView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
@@ -37,7 +42,7 @@ final class MemberCell: UITableViewCell {
             textStack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 10),
             textStack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -10),
 
-            separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 72),
+            separator.leadingAnchor.constraint(equalTo: separatorLeading),
             separator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             separator.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
             separator.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale)
@@ -85,6 +90,8 @@ final class MemberCell: UITableViewCell {
         titleLabel.textColor = Theme.textPrimary
         subtitleLabel.textColor = Theme.textSecondary
         avatarView.layer.borderColor = Theme.divider.cgColor
+        separator.backgroundColor = Theme.divider
+        separatorLeading.constant = Theme.isVK56 ? 0 : 72
     }
 
     /// Подсветить строку как играющий трек.

@@ -110,7 +110,9 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
         input.backgroundColor = Theme.card
         input.isScrollEnabled = true
         input.delegate = self
-        input.layer.cornerRadius = 18
+        input.layer.cornerRadius = Theme.isVK56 ? 2 : 18
+        input.layer.borderWidth = Theme.cardBorderWidth
+        input.layer.borderColor = Theme.border.cgColor
         input.layer.masksToBounds = true
 
         sendButton.setTitle("Отправить", for: .normal)
@@ -411,6 +413,11 @@ final class ChatViewController: TableScreenController, UITextViewDelegate {
         composer.backgroundColor = Theme.composerBackground
         input.textColor = Theme.textPrimary
         input.backgroundColor = Theme.card
+        input.layer.cornerRadius = Theme.isVK56 ? 2 : 18
+        input.layer.borderWidth = Theme.cardBorderWidth
+        if Theme.cardBorderWidth > 0 { input.layer.borderColor = Theme.border.cgColor }
         placeholderLabel.textColor = Theme.textSecondary
+        sendButton.setTitleColor(Theme.accent, for: .normal)
+        sendButton.setTitleColor(Theme.textSecondary.withAlphaComponent(0.5), for: .disabled)
     }
 }

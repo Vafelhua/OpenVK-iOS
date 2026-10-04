@@ -6,6 +6,8 @@ final class SettingsViewController: UIViewController {
     private let stack = UIStackView()
 
     private let themeSwitch = UISwitch()
+    private let styleControl = UISegmentedControl(items: [Theme.Style.vk56.title,
+                                                           Theme.Style.modern.title])
     private let serverField = UIFactory.textField(placeholder: "https://api.openvk.org/method/")
     private let saveServerButton = UIButton(type: .system)
     private let logoutButton = UIButton(type: .system)
@@ -32,11 +34,13 @@ final class SettingsViewController: UIViewController {
     /// после пересборки экрана (смена темы) обработчик срабатывал бы дважды.
     private func wireActions() {
         themeSwitch.removeTarget(nil, action: nil, for: .allEvents)
+        styleControl.removeTarget(nil, action: nil, for: .allEvents)
         saveServerButton.removeTarget(nil, action: nil, for: .allEvents)
         logoutButton.removeTarget(nil, action: nil, for: .allEvents)
         serverField.removeTarget(nil, action: nil, for: .allEvents)
 
         themeSwitch.addTarget(self, action: #selector(themeChanged), for: .valueChanged)
+        styleControl.addTarget(self, action: #selector(styleChanged), for: .valueChanged)
         serverField.addTarget(self, action: #selector(saveServer), for: .editingDidEnd)
         saveServerButton.addTarget(self, action: #selector(saveServer), for: .touchUpInside)
         logoutButton.addTarget(self, action: #selector(logout), for: .touchUpInside)
@@ -78,6 +82,22 @@ final class SettingsViewController: UIViewController {
             themeRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 52)
         ])
         stack.addArrangedSubview(themeRow)
+        stack.addArrangedSubview(makeSeparator())
+
+        // Стиль оформления
+        let styleRow = makeRow(title: "Стиль оформления")
+        styleControl.translatesAutoresizingMaskIntoConstraints = false
+        styleControl.selectedSegmentTintColor = Theme.accent
+        styleControl.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
+        styleControl.setTitleTextAttributes([.foregroundColor: Theme.textPrimary], for: .normal)
+        styleRow.addSubview(styleControl)
+        NSLayoutConstraint.activate([
+            styleControl.trailingAnchor.constraint(equalTo: styleRow.trailingAnchor, constant: -16),
+            styleControl.centerYAnchor.constraint(equalTo: styleRow.centerYAnchor),
+            styleControl.leadingAnchor.constraint(greaterThanOrEqualTo: styleRow.leadingAnchor, constant: 16),
+            styleRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 52)
+        ])
+        stack.addArrangedSubview(styleRow)
         stack.addArrangedSubview(makeSeparator())
 
         // Сервер
@@ -174,6 +194,7 @@ final class SettingsViewController: UIViewController {
 
     private func loadValues() {
         themeSwitch.isOn = LocalSettings.shared.isDarkTheme
+        styleControl.selectedSegmentIndex = Theme.style == .vk56 ? 0 : 1
         serverField.text = LocalSettings.shared.instanceBaseURL
     }
 
@@ -278,6 +299,12 @@ final class SettingsViewController: UIViewController {
 
     @objc private func themeChanged() {
         LocalSettings.shared.isDarkTheme = themeSwitch.isOn
+        Theme.applyGlobalAppearance()
+        Theme.reloadAppearance()
+    }
+
+    @objc private func styleChanged() {
+        Theme.style = styleControl.selectedSegmentIndex == 0 ? .vk56 : .modern
         Theme.applyGlobalAppearance()
         Theme.reloadAppearance()
     }

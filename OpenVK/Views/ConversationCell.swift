@@ -11,6 +11,7 @@ final class ConversationCell: UITableViewCell {
     private let timeLabel = UIFactory.label("", size: 12, color: Theme.textSecondary)
     private let badgeLabel = UIFactory.label("", size: 11, weight: .bold, color: .white)
     private let separator = UIView()
+    private var separatorLeading: NSLayoutConstraint!
     private var photoWidth: NSLayoutConstraint!
 
     var unreadCount: Int = 0
@@ -40,6 +41,8 @@ final class ConversationCell: UITableViewCell {
         contentView.addSubview(separator)
 
         photoWidth = photoView.widthAnchor.constraint(equalToConstant: 40)
+        separatorLeading = separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor,
+                                                              constant: Theme.isVK56 ? 0 : 72)
 
         titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         messageLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -70,7 +73,7 @@ final class ConversationCell: UITableViewCell {
             timeLabel.trailingAnchor.constraint(equalTo: photoView.leadingAnchor, constant: -8),
             timeLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 14),
 
-            separator.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 72),
+            separator.leadingAnchor.constraint(equalTo: separatorLeading),
             separator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             separator.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
             separator.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale)
@@ -139,6 +142,7 @@ final class ConversationCell: UITableViewCell {
         messageLabel.textColor = Theme.textSecondary
         timeLabel.textColor = Theme.textSecondary
         separator.backgroundColor = Theme.divider
-        badgeLabel.backgroundColor = Theme.accent
+        separatorLeading.constant = Theme.isVK56 ? 0 : 72
+        badgeLabel.backgroundColor = Theme.badge
     }
 }

@@ -9,6 +9,7 @@ final class LocalSettings {
     private let uidKey = "openvk.user_id"
     private let instanceKey = "openvk.instance_base_url"
     private let themeKey = "openvk.theme"
+    private let styleKey = "openvk.style"
 
     private init() {}
 
@@ -90,5 +91,11 @@ final class LocalSettings {
     var isDarkTheme: Bool {
         get { return theme == "dark" }
         set { theme = newValue ? "dark" : "light" }
+    }
+
+    /// Стиль оформления интерфейса: классический VK 6.56 или современный.
+    var style: String {
+        get { return defaults.string(forKey: styleKey) ?? "vk56" }
+        set { defaults.set(newValue, forKey: styleKey) }
     }
 }
