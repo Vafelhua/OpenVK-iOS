@@ -412,8 +412,8 @@ final class PhotosViewController: UIViewController, UICollectionViewDataSource, 
         layout.itemSize = CGSize(width: side, height: side)
     }
 
-    override func applyTheme() {
-        super.applyTheme()
+    private func applyTheme() {
+        Theme.decorate(self)
         collection.backgroundColor = Theme.background
         statusLabel.textColor = Theme.textSecondary
     }
