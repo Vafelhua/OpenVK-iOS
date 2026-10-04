@@ -317,6 +317,10 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         cell.onAuthor = { [weak self] in
             self?.openAuthor(of: post)
         }
+        cell.onMore = { [weak self] in
+            guard let self = self else { return }
+            PostActions.openMenu(post, in: self)
+        }
         return cell
     }
 

@@ -5,6 +5,8 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
     private var friends: [VKUser] = []
     private var filtered: [VKUser] = []
     private var searchBar: UISearchBar?
+    private var onlineOnly = false
+    private var currentQuery = ""
 
     /// Режим выбора собеседника: заголовок меняется на «Новое сообщение».
     var pickerMode = false
@@ -18,15 +20,41 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
                                                             target: self,
                                                             action: #selector(refreshTapped))
 
+        // В режиме выбора собеседника фильтры лишние — только поиск.
+        var headerHeight: CGFloat = 52
+        let header = UIStackView()
+        header.axis = .vertical
+        header.spacing = 0
+
+        if pickerMode == false {
+            let segments = UISegmentedControl(items: ["Все", "Онлайн"])
+            segments.selectedSegmentIndex = 0
+            segments.addTarget(self, action: #selector(filterChanged(_:)), for: .valueChanged)
+            segments.frame = CGRect(x: 8, y: 4, width: view.bounds.width - 16, height: 32)
+            segments.autoresizingMask = [.flexibleWidth]
+            header.addArrangedSubview(segments)
+            headerHeight += 40
+        }
+
         let bar = UISearchBar()
         bar.delegate = self
         bar.placeholder = "Поиск по друзьям"
         bar.searchBarStyle = .minimal
         bar.sizeToFit()
-        table.tableHeaderView = bar
+        header.addArrangedSubview(bar)
         searchBar = bar
 
+        header.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: headerHeight)
+        header.autoresizingMask = [.flexibleWidth]
+        table.tableHeaderView = header
+
         load()
+    }
+
+    @objc private func filterChanged(_ sender: UISegmentedControl) {
+        onlineOnly = sender.selectedSegmentIndex == 1
+        applyFilter(currentQuery)
+        reload()
     }
 
     @objc private func refreshTapped() {
@@ -37,7 +65,7 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
         setLoading(friends.isEmpty)
         showStatus(nil)
 
-        VKApiClient.shared.call("friends.get", ["fields": "photo_50,photo_100,status,online",
+        VKApiClient.shared.call("friends.get", ["fields": "photo_50,photo_100,photo_200,status,online",
                                                 "count": "200",
                                                 "order": "hints"]) { [weak self] result in
             DispatchQueue.main.async {
@@ -46,8 +74,7 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
                 switch result {
                 case .success(let value):
                     self.friends = VKUser.readList(value, key: "items")
-                    self.applyFilter("")
-                    self.showStatus(self.friends.isEmpty ? "Список друзей пуст" : nil)
+                    self.applyFilter(self.currentQuery)
                     self.reload()
                 case .failure(let error):
                     self.showError(error)
@@ -57,6 +84,7 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
     }
 
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        currentQuery = searchText
         applyFilter(searchText)
         reload()
     }
@@ -67,13 +95,19 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
 
     private func applyFilter(_ query: String) {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        var source = friends
+        if onlineOnly {
+            source = source.filter { $0.isOnline }
+        }
         if text.isEmpty {
-            filtered = friends
-            return
+            filtered = source
+        } else {
+            filtered = source.filter {
+                $0.name.lowercased().contains(text) || $0.screenName.lowercased().contains(text)
+            }
         }
-        filtered = friends.filter {
-            $0.name.lowercased().contains(text) || $0.screenName.lowercased().contains(text)
-        }
+        showStatus(filtered.isEmpty ? (source.isEmpty ? "Список друзей пуст" : "Никого не найдено") : nil)
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {

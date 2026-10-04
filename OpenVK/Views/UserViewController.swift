@@ -46,6 +46,14 @@ final class UserViewController: WallScreenController {
         messageButton.addTarget(self, action: #selector(openChat), for: .touchUpInside)
         actions.addArrangedSubview(messageButton)
 
+        let photosButton = UIButton(type: .system)
+        photosButton.setTitle("Фото", for: .normal)
+        photosButton.setTitleColor(Theme.accent, for: .normal)
+        photosButton.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        photosButton.backgroundColor = Theme.composerBackground
+        photosButton.addTarget(self, action: #selector(openPhotos), for: .touchUpInside)
+        actions.addArrangedSubview(photosButton)
+
         addButton.setTitle("Добавить в друзья", for: .normal)
         addButton.setTitleColor(Theme.accent, for: .normal)
         addButton.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
@@ -113,6 +121,10 @@ final class UserViewController: WallScreenController {
 
     @objc private func openInfo() {
         navigationController?.pushViewController(UserInfoViewController(userId: user.id, name: user.name), animated: true)
+    }
+
+    @objc private func openPhotos() {
+        Navigator.openPhotos(ownerId: user.id, in: self)
     }
 }
 
@@ -278,5 +290,279 @@ final class UserInfoViewController: UITableViewController {
         cell.detailTextLabel?.numberOfLines = 0
         cell.selectionStyle = .none
         return cell
+    }
+}
+
+/// Ячейка сетки фотографий: квадратная миниатюра без скруглений в стиле VK 6.56.
+final class PhotoGridCell: UICollectionViewCell {
+    static let reuseId = "PhotoGridCell"
+
+    private let photoImage = RemoteImageView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        photoImage.contentMode = .scaleAspectFill
+        photoImage.clipsToBounds = true
+        photoImage.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(photoImage)
+        NSLayoutConstraint.activate([
+            photoImage.topAnchor.constraint(equalTo: contentView.topAnchor),
+            photoImage.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            photoImage.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            photoImage.bottomAnchor.constraint(equalTo: contentView.bottomAnchor)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        photoImage.clear()
+    }
+
+    func configure(_ photo: VKPhoto) {
+        photoImage.setRemote(photo.smallURL, placeholder: Theme.divider)
+    }
+}
+
+/// Сетка фотографий пользователя или сообщества с полноэкранным просмотром.
+final class PhotosViewController: UIViewController, UICollectionViewDataSource, UICollectionViewDelegate {
+    private let ownerId: Int
+    private var photos: [VKPhoto] = []
+    private var offset = 0
+    private var isLoading = false
+
+    private let statusLabel = UILabel()
+    private let spinner = UIActivityIndicatorView(style: .gray)
+    private lazy var collection: UICollectionView = {
+        let layout = UICollectionViewFlowLayout()
+        layout.minimumInteritemSpacing = 2
+        layout.minimumLineSpacing = 2
+        let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        view.backgroundColor = Theme.background
+        view.alwaysBounceVertical = true
+        view.dataSource = self
+        view.delegate = self
+        view.register(PhotoGridCell.self, forCellWithReuseIdentifier: PhotoGridCell.reuseId)
+        return view
+    }()
+
+    init(ownerId: Int) {
+        self.ownerId = ownerId
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Фотографии"
+        Theme.decorate(self)
+
+        statusLabel.font = UIFont.systemFont(ofSize: 15)
+        statusLabel.textColor = Theme.textSecondary
+        statusLabel.textAlignment = .center
+        statusLabel.numberOfLines = 0
+        statusLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        spinner.hidesWhenStopped = true
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+
+        view.addSubview(collection)
+        view.addSubview(statusLabel)
+        view.addSubview(spinner)
+
+        let safe = view.safeAreaLayoutGuide
+        NSLayoutConstraint.activate([
+            collection.topAnchor.constraint(equalTo: safe.topAnchor),
+            collection.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
+            collection.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
+            collection.bottomAnchor.constraint(equalTo: safe.bottomAnchor),
+
+            statusLabel.centerXAnchor.constraint(equalTo: safe.centerXAnchor),
+            statusLabel.centerYAnchor.constraint(equalTo: safe.centerYAnchor),
+            statusLabel.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 24),
+            statusLabel.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -24),
+
+            spinner.centerXAnchor.constraint(equalTo: safe.centerXAnchor),
+            spinner.centerYAnchor.constraint(equalTo: safe.centerYAnchor)
+        ])
+
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(themeDidChange),
+                                               name: .openVKThemeDidChange,
+                                               object: nil)
+
+        load(reset: true)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        guard let layout = collection.collectionViewLayout as? UICollectionViewFlowLayout else { return }
+        // Сетка 3×N. Отступы вычитаем, чтобы последняя колонка не обрезалась.
+        let side = floor((collection.bounds.width - 4) / 3)
+        layout.itemSize = CGSize(width: side, height: side)
+    }
+
+    override func applyTheme() {
+        super.applyTheme()
+        collection.backgroundColor = Theme.background
+        statusLabel.textColor = Theme.textSecondary
+    }
+
+    @objc private func themeDidChange() {
+        applyTheme()
+    }
+
+    private func load(reset: Bool) {
+        guard isLoading == false else { return }
+        isLoading = true
+        if reset {
+            offset = 0
+            spinner.startAnimating()
+        }
+        statusLabel.isHidden = true
+
+        var parameters = ["owner_id": String(ownerId), "count": "100"]
+        if offset > 0 { parameters["offset"] = String(offset) }
+
+        VKApiClient.shared.call("photos.get", parameters) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.isLoading = false
+                self.spinner.stopAnimating()
+                switch result {
+                case .success(let value):
+                    let raw = J.getArr(value, "items").compactMap { VKPhoto(dict: ($0 as? [String: Any]) ?? [:]) }
+                    self.offset += raw.count
+                    if reset {
+                        self.photos = raw
+                    } else {
+                        let known = Set(self.photos.map { $0.id })
+                        self.photos = self.photos + raw.filter { known.contains($0.id) == false }
+                    }
+                    self.collection.reloadData()
+                    self.statusLabel.text = self.photos.isEmpty ? "Фотографий пока нет" : nil
+                    self.statusLabel.isHidden = self.photos.isEmpty == false
+                case .failure(let error):
+                    self.statusLabel.text = self.photos.isEmpty ? error.message : nil
+                    self.statusLabel.isHidden = self.photos.isEmpty == false
+                }
+            }
+        }
+    }
+
+    // MARK: - Коллекция
+
+    func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+        return photos.count
+    }
+
+    func collectionView(_ collectionView: UICollectionView,
+                        cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+        guard let photo = photos[safe: indexPath.item],
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: PhotoGridCell.reuseId,
+                                                           for: indexPath) as? PhotoGridCell else {
+            return UICollectionViewCell()
+        }
+        cell.configure(photo)
+        return cell
+    }
+
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        guard let photo = photos[safe: indexPath.item] else { return }
+        PhotoViewer.present(url: photo.bigURL)
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        guard scrollView === collection, photos.isEmpty == false else { return }
+        let threshold = scrollView.contentSize.height - scrollView.bounds.height - 240
+        if scrollView.contentOffset.y > threshold {
+            load(reset: false)
+        }
+    }
+}
+
+/// Список пользователей, которым понравилась запись.
+final class LikesViewController: TableScreenController {
+    private let ownerId: Int
+    private let postId: Int
+    private var users: [VKUser] = []
+
+    init(ownerId: Int, postId: Int) {
+        self.ownerId = ownerId
+        self.postId = postId
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var itemsCount: Int { return users.count }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Понравилось"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .refresh,
+                                                            target: self,
+                                                            action: #selector(refreshTapped))
+        load()
+    }
+
+    @objc private func refreshTapped() {
+        load()
+    }
+
+    override func load() {
+        setLoading(users.isEmpty)
+        showStatus(nil)
+
+        VKApiClient.shared.call("likes.getUsers",
+                                ["type": "post",
+                                 "owner_id": String(ownerId),
+                                 "item_id": String(postId),
+                                 "count": "200",
+                                 "fields": "photo_50,photo_100"]) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.setLoading(false)
+                switch result {
+                case .success(let value):
+                    self.users = VKUser.readList(value)
+                    self.showStatus(self.users.isEmpty ? "Нет оценок" : nil)
+                    self.reload()
+                case .failure(let error):
+                    self.showError(error)
+                }
+            }
+        }
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        guard let user = users[safe: indexPath.row],
+            let cell = dequeueCell(MemberCell.self, identifier: MemberCell.reuseId, at: indexPath) else {
+            return UITableViewCell()
+        }
+        cell.configure(user: user)
+        return cell
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        table.deselectRow(at: indexPath, animated: true)
+        guard let user = users[safe: indexPath.row] else { return }
+        Navigator.openUser(user, in: self)
+    }
+
+    override func reload() {
+        table.reloadData()
     }
 }

@@ -4,6 +4,8 @@ import UIKit
 final class GroupViewController: WallScreenController {
     private let group: VKGroup
     private var headerParts: HeaderParts?
+    private let joinButton = UIButton(type: .system)
+    private var isMember: Bool?
 
     init(group: VKGroup) {
         self.group = group
@@ -29,10 +31,74 @@ final class GroupViewController: WallScreenController {
 
         addActionRow([
             (title: "Написать", action: #selector(openChat), color: Theme.accent),
+            (title: "Фото", action: #selector(openPhotos), color: Theme.accent),
             (title: "В браузере", action: #selector(openInBrowser), color: Theme.accent)
         ])
 
+        joinButton.setTitle("Проверяем…", for: .normal)
+        joinButton.setTitleColor(Theme.textSecondary, for: .normal)
+        joinButton.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        joinButton.backgroundColor = Theme.composerBackground
+        joinButton.addTarget(self, action: #selector(toggleMembership), for: .touchUpInside)
+        joinButton.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        headerStack.addArrangedSubview(joinButton)
+
         loadMembersCount()
+        refreshMembership()
+    }
+
+    /// groups.getById с is_member — у OpenVK нет отдельного «я подписан».
+    private func refreshMembership() {
+        VKApiClient.shared.call("groups.getById",
+                                ["group_id": String(group.id),
+                                 "fields": "is_member"]) { [weak self] result in
+            guard let self = self else { return }
+            guard case .success(let value) = result else { return }
+            let first = J.items(value).first as? [String: Any] ?? J.dict(J.getArr(value, "groups").first) ?? [:]
+            let flag = J.getBool(first, "is_member", false)
+            DispatchQueue.main.async {
+                self.isMember = flag
+                self.updateJoinButton()
+            }
+        }
+    }
+
+    private func updateJoinButton() {
+        guard isMember != nil else { return }
+        joinButton.setTitle(isMember == true ? "Вы подписаны" : "Вступить", for: .normal)
+        joinButton.setTitleColor(isMember == true ? Theme.textSecondary : Theme.accent, for: .normal)
+    }
+
+    @objc private func toggleMembership() {
+        guard let member = isMember else { return }
+        joinButton.isEnabled = false
+
+        let method = member ? "groups.leave" : "groups.join"
+        VKApiClient.shared.call(method, ["group_id": String(group.id)]) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                switch result {
+                case .success:
+                    self.isMember = member == false
+                    self.updateJoinButton()
+                    self.joinButton.isEnabled = true
+                    if self.isMember == true {
+                        self.group.membersCount += 1
+                    } else {
+                        self.group.membersCount = max(self.group.membersCount - 1, 0)
+                    }
+                    self.headerParts?.counters.text = self.group.membersText
+                case .failure(let error):
+                    self.joinButton.isEnabled = true
+                    if error.isMethodMissing {
+                        self.presentAlert(title: "Не поддерживается",
+                                          message: "Инстанс не умеет менять подписку на сообщества.")
+                    } else {
+                        self.presentAlert(title: "Ошибка", message: error.message)
+                    }
+                }
+            }
+        }
     }
 
     /// groups.getMembers с count=1 — у OpenVK нет отдельного счётчика в groups.get.
@@ -70,5 +136,15 @@ final class GroupViewController: WallScreenController {
 
     @objc private func openInBrowser() {
         Navigator.openGroupInBrowser(group, from: self)
+    }
+
+    @objc private func openPhotos() {
+        Navigator.openPhotos(ownerId: -group.id, in: self)
+    }
+
+    override func applyTheme() {
+        super.applyTheme()
+        joinButton.backgroundColor = Theme.composerBackground
+        updateJoinButton()
     }
 }

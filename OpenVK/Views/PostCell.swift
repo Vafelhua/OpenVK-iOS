@@ -8,6 +8,8 @@ final class PostCell: UITableViewCell {
     var onComment: (() -> Void)?
     var onRepost: (() -> Void)?
     var onAuthor: (() -> Void)?
+    /// Долгое нажатие по карточке — как меню записи в клиенте VK 6.56.
+    var onMore: (() -> Void)?
 
     private let card = UIView()
     private let avatarView = UIFactory.avatar(44)
@@ -59,6 +61,11 @@ final class PostCell: UITableViewCell {
         // Тап по фото открывает его во весь экран.
         photoView.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(photoTapped)))
         photoView.isUserInteractionEnabled = true
+
+        // Долгое нажатие открывает меню записи.
+        let hold = UILongPressGestureRecognizer(target: self, action: #selector(moreTapped(_:)))
+        hold.minimumPressDuration = 0.45
+        card.addGestureRecognizer(hold)
 
         // Как в VK: иконка и счётчик рядом, третья колонка прижата вправо.
         let actionStack = UIStackView(arrangedSubviews: [likeButton, commentButton, repostButton])
@@ -140,6 +147,7 @@ final class PostCell: UITableViewCell {
         onComment = nil
         onRepost = nil
         onAuthor = nil
+        onMore = nil
     }
 
     /// Высота фото считается от фактической ширины карточки: на iPad и при
@@ -236,4 +244,9 @@ final class PostCell: UITableViewCell {
     @objc private func commentTapped() { onComment?() }
     @objc private func repostTapped() { onRepost?() }
     @objc private func authorTapped() { onAuthor?() }
+
+    @objc private func moreTapped(_ recognizer: UILongPressGestureRecognizer) {
+        guard recognizer.state == .began else { return }
+        onMore?()
+    }
 }

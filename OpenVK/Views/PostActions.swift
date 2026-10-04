@@ -51,4 +51,53 @@ enum PostActions {
         Theme.styleNavigationBar(navigation.navigationBar)
         controller.present(navigation, animated: true, completion: nil)
     }
+
+    /// Меню записи по долгому нажатию: оценки и удаление своей записи.
+    static func openMenu(_ post: VKPost, in controller: UIViewController) {
+        let sheet = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
+
+        if post.likesCount > 0 {
+            sheet.addAction(UIAlertAction(title: "Понравилось: \(post.likesCount)",
+                                          style: .default) { _ in
+                Navigator.openLikes(post: post, in: controller)
+            })
+        }
+
+        let isOwn = post.ownerId == LocalSettings.shared.userId
+        if isOwn {
+            sheet.addAction(UIAlertAction(title: "Удалить запись", style: .destructive) { _ in
+                delete(post, in: controller)
+            })
+        }
+
+        sheet.addAction(UIAlertAction(title: "Отмена", style: .cancel, handler: nil))
+
+        // На iPad actionSheet требует anchor — иначе аварийно падает.
+        if let popover = sheet.popoverPresentationController {
+            popover.sourceView = controller.view
+            popover.sourceRect = CGRect(x: controller.view.bounds.midX,
+                                        y: controller.view.bounds.midY,
+                                        width: 1, height: 1)
+            popover.permittedArrowDirections = []
+        }
+        controller.present(sheet, animated: true, completion: nil)
+    }
+
+    static func delete(_ post: VKPost, in controller: UIViewController) {
+        var parameters: [String: String] = ["post_id": String(post.id)]
+        if post.ownerId == LocalSettings.shared.userId {
+            parameters["owner_id"] = String(post.ownerId)
+        }
+
+        VKApiClient.shared.call("wall.delete", parameters) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    controller.presentAlert(title: "Готово", message: "Запись удалена.")
+                case .failure(let error):
+                    controller.presentAlert(title: "Ошибка", message: error.message)
+                }
+            }
+        }
+    }
 }
