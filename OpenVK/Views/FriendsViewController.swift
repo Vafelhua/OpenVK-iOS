@@ -21,7 +21,6 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
                                                             action: #selector(refreshTapped))
 
         // В режиме выбора собеседника фильтры лишние — только поиск.
-        var headerHeight: CGFloat = 52
         let header = UIStackView()
         header.axis = .vertical
         header.spacing = 0
@@ -30,10 +29,11 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
             let segments = UISegmentedControl(items: ["Все", "Онлайн"])
             segments.selectedSegmentIndex = 0
             segments.addTarget(self, action: #selector(filterChanged(_:)), for: .valueChanged)
-            segments.frame = CGRect(x: 8, y: 4, width: view.bounds.width - 16, height: 32)
-            segments.autoresizingMask = [.flexibleWidth]
+            segments.translatesAutoresizingMaskIntoConstraints = false
+            segments.heightAnchor.constraint(equalToConstant: 30).isActive = true
             header.addArrangedSubview(segments)
-            headerHeight += 40
+            header.layoutMargins = UIEdgeInsets(top: 6, left: 8, bottom: 2, right: 8)
+            header.isLayoutMarginsRelativeArrangement = true
         }
 
         let bar = UISearchBar()
@@ -44,7 +44,15 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
         header.addArrangedSubview(bar)
         searchBar = bar
 
-        header.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: headerHeight)
+        // Высота шапки считается по реальному содержимому: у UISearchBar своя
+        // intrinsic-высота, и жёстко заданная константа обрезала бы его.
+        let width = view.bounds.width
+        header.frame = CGRect(x: 0, y: 0, width: width, height: 1)
+        let fitted = header.systemLayoutSizeFitting(
+            CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+            withHorizontalFittingPriority: .required,
+            verticalFittingPriority: .fittingSizeLevel)
+        header.frame = CGRect(x: 0, y: 0, width: width, height: max(fitted.height, 56))
         header.autoresizingMask = [.flexibleWidth]
         table.tableHeaderView = header
 

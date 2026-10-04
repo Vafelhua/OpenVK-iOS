@@ -323,6 +323,7 @@ final class PhotoGridCell: UICollectionViewCell {
     }
 
     func configure(_ photo: VKPhoto) {
+        photoImage.layer.cornerRadius = Theme.cardRadius
         photoImage.setRemote(photo.smallURL, placeholder: Theme.divider)
     }
 }

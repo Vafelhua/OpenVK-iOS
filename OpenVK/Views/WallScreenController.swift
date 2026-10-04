@@ -291,9 +291,17 @@ class WallScreenController: TableScreenController {
         }
         cell.onMore = { [weak self] in
             guard let self = self else { return }
-            PostActions.openMenu(post, in: self)
+            PostActions.openMenu(post, in: self) { [weak self] in
+                self?.removePost(post)
+            }
         }
         return cell
+    }
+
+    /// Убирает запись из ленты сразу после успешного удаления на сервере.
+    func removePost(_ post: VKPost) {
+        posts = posts.filter { $0 !== post }
+        reload()
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {

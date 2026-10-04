@@ -319,9 +319,17 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         }
         cell.onMore = { [weak self] in
             guard let self = self else { return }
-            PostActions.openMenu(post, in: self)
+            PostActions.openMenu(post, in: self) { [weak self] in
+                self?.removePost(post)
+            }
         }
         return cell
+    }
+
+    private func removePost(_ post: VKPost) {
+        posts = posts.filter { $0 !== post }
+        foundPosts = foundPosts.filter { $0 !== post }
+        reload()
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {

@@ -53,7 +53,7 @@ enum PostActions {
     }
 
     /// Меню записи по долгому нажатию: оценки и удаление своей записи.
-    static func openMenu(_ post: VKPost, in controller: UIViewController) {
+    static func openMenu(_ post: VKPost, in controller: UIViewController, onDeleted: (() -> Void)? = nil) {
         let sheet = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
 
         if post.likesCount > 0 {
@@ -66,7 +66,7 @@ enum PostActions {
         let isOwn = post.ownerId == LocalSettings.shared.userId
         if isOwn {
             sheet.addAction(UIAlertAction(title: "Удалить запись", style: .destructive) { _ in
-                delete(post, in: controller)
+                delete(post, in: controller, completion: onDeleted)
             })
         }
 
@@ -83,7 +83,9 @@ enum PostActions {
         controller.present(sheet, animated: true, completion: nil)
     }
 
-    static func delete(_ post: VKPost, in controller: UIViewController) {
+    static func delete(_ post: VKPost,
+                       in controller: UIViewController,
+                       completion: (() -> Void)? = nil) {
         var parameters: [String: String] = ["post_id": String(post.id)]
         if post.ownerId == LocalSettings.shared.userId {
             parameters["owner_id"] = String(post.ownerId)
@@ -93,7 +95,7 @@ enum PostActions {
             DispatchQueue.main.async {
                 switch result {
                 case .success:
-                    controller.presentAlert(title: "Готово", message: "Запись удалена.")
+                    completion?()
                 case .failure(let error):
                     controller.presentAlert(title: "Ошибка", message: error.message)
                 }
