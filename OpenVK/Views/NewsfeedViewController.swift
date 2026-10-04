@@ -20,10 +20,6 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
     private let scopeButton = UIBarButtonItem(title: "Глобальная", style: .plain, target: nil, action: nil)
     private lazy var refreshButton = UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(refreshTapped))
     private lazy var searchButton = UIBarButtonItem(barButtonSystemItem: .search, target: self, action: #selector(searchTapped))
-    private let notificationsButton = UIBarButtonItem(title: "Уведомления",
-                                                      style: .plain,
-                                                      target: nil,
-                                                      action: nil)
 
     override var itemsCount: Int { return posts.count + foundUsers.count + foundPosts.count }
 
@@ -32,16 +28,10 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         paginationEnabled = true
         scopeButton.target = self
         scopeButton.action = #selector(scopeTapped)
-        notificationsButton.target = self
-        notificationsButton.action = #selector(notificationsTapped)
         // Кнопка обновления — слева, как в клиенте OpenVK; справа поиск и охват.
         navigationItem.leftBarButtonItem = refreshButton
-        navigationItem.rightBarButtonItems = [searchButton, scopeButton, notificationsButton]
+        navigationItem.rightBarButtonItems = [searchButton, scopeButton]
         load()
-    }
-
-    @objc private func notificationsTapped() {
-        navigationController?.pushViewController(NotificationsViewController(), animated: true)
     }
 
     // MARK: - Загрузка
@@ -327,19 +317,7 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         cell.onAuthor = { [weak self] in
             self?.openAuthor(of: post)
         }
-        cell.onMore = { [weak self] in
-            guard let self = self else { return }
-            PostActions.openMenu(post, in: self) { [weak self] in
-                self?.removePost(post)
-            }
-        }
         return cell
-    }
-
-    private func removePost(_ post: VKPost) {
-        posts = posts.filter { $0 !== post }
-        foundPosts = foundPosts.filter { $0 !== post }
-        reload()
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {

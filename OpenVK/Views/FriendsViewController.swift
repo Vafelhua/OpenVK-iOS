@@ -5,8 +5,6 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
     private var friends: [VKUser] = []
     private var filtered: [VKUser] = []
     private var searchBar: UISearchBar?
-    private var onlineOnly = false
-    private var currentQuery = ""
 
     /// Режим выбора собеседника: заголовок меняется на «Новое сообщение».
     var pickerMode = false
@@ -20,49 +18,15 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
                                                             target: self,
                                                             action: #selector(refreshTapped))
 
-        // В режиме выбора собеседника фильтры лишние — только поиск.
-        let header = UIStackView()
-        header.axis = .vertical
-        header.spacing = 0
-
-        if pickerMode == false {
-            let segments = UISegmentedControl(items: ["Все", "Онлайн"])
-            segments.selectedSegmentIndex = 0
-            segments.addTarget(self, action: #selector(filterChanged(_:)), for: .valueChanged)
-            segments.translatesAutoresizingMaskIntoConstraints = false
-            segments.heightAnchor.constraint(equalToConstant: 30).isActive = true
-            header.addArrangedSubview(segments)
-            header.layoutMargins = UIEdgeInsets(top: 6, left: 8, bottom: 2, right: 8)
-            header.isLayoutMarginsRelativeArrangement = true
-        }
-
         let bar = UISearchBar()
         bar.delegate = self
         bar.placeholder = "Поиск по друзьям"
         bar.searchBarStyle = .minimal
         bar.sizeToFit()
-        header.addArrangedSubview(bar)
+        table.tableHeaderView = bar
         searchBar = bar
 
-        // Высота шапки считается по реальному содержимому: у UISearchBar своя
-        // intrinsic-высота, и жёстко заданная константа обрезала бы его.
-        let width = view.bounds.width
-        header.frame = CGRect(x: 0, y: 0, width: width, height: 1)
-        let fitted = header.systemLayoutSizeFitting(
-            CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
-            withHorizontalFittingPriority: .required,
-            verticalFittingPriority: .fittingSizeLevel)
-        header.frame = CGRect(x: 0, y: 0, width: width, height: max(fitted.height, 56))
-        header.autoresizingMask = [.flexibleWidth]
-        table.tableHeaderView = header
-
         load()
-    }
-
-    @objc private func filterChanged(_ sender: UISegmentedControl) {
-        onlineOnly = sender.selectedSegmentIndex == 1
-        applyFilter(currentQuery)
-        reload()
     }
 
     @objc private func refreshTapped() {
@@ -73,7 +37,7 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
         setLoading(friends.isEmpty)
         showStatus(nil)
 
-        VKApiClient.shared.call("friends.get", ["fields": "photo_50,photo_100,photo_200,status,online",
+        VKApiClient.shared.call("friends.get", ["fields": "photo_50,photo_100,status,online",
                                                 "count": "200",
                                                 "order": "hints"]) { [weak self] result in
             DispatchQueue.main.async {
@@ -82,7 +46,8 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
                 switch result {
                 case .success(let value):
                     self.friends = VKUser.readList(value, key: "items")
-                    self.applyFilter(self.currentQuery)
+                    self.applyFilter("")
+                    self.showStatus(self.friends.isEmpty ? "Список друзей пуст" : nil)
                     self.reload()
                 case .failure(let error):
                     self.showError(error)
@@ -92,7 +57,6 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
     }
 
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-        currentQuery = searchText
         applyFilter(searchText)
         reload()
     }
@@ -103,19 +67,13 @@ final class FriendsViewController: TableScreenController, UISearchBarDelegate {
 
     private func applyFilter(_ query: String) {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
-        var source = friends
-        if onlineOnly {
-            source = source.filter { $0.isOnline }
-        }
         if text.isEmpty {
-            filtered = source
-        } else {
-            filtered = source.filter {
-                $0.name.lowercased().contains(text) || $0.screenName.lowercased().contains(text)
-            }
+            filtered = friends
+            return
         }
-        showStatus(filtered.isEmpty ? (source.isEmpty ? "Список друзей пуст" : "Никого не найдено") : nil)
+        filtered = friends.filter {
+            $0.name.lowercased().contains(text) || $0.screenName.lowercased().contains(text)
+        }
     }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {

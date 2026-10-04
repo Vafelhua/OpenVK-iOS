@@ -11,7 +11,7 @@ enum AuthService {
             return
         }
 
-        let form: [String: String] = [
+        var form: [String: String] = [
             "grant_type": "password",
             "client_id": VKConstants.clientID,
             "client_name": VKConstants.clientName,

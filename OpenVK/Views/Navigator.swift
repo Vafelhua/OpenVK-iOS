@@ -33,14 +33,6 @@ enum Navigator {
         push(ChatViewController(peer: peer), in: controller)
     }
 
-    static func openPhotos(ownerId: Int, in controller: UIViewController) {
-        push(PhotosViewController(ownerId: ownerId), in: controller)
-    }
-
-    static func openLikes(post: VKPost, in controller: UIViewController) {
-        push(LikesViewController(ownerId: post.ownerId, postId: post.id), in: controller)
-    }
-
     static func openGroupInBrowser(_ group: VKGroup, from controller: UIViewController) {
         let path = group.screenName.isEmpty ? "club\(group.id)" : group.screenName
         let urlString = LocalSettings.shared.instanceWebBaseURL + path

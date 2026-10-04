@@ -87,13 +87,10 @@ final class SettingsViewController: UIViewController {
         // Стиль оформления
         let styleRow = makeRow(title: "Стиль оформления")
         styleControl.translatesAutoresizingMaskIntoConstraints = false
-        // `selectedSegmentTintColor` есть только с iOS 13. На iOS 12 заливка
-        // выбранного сегмента остаётся системной (светло-серая), поэтому
-        // белый текст был бы почти не виден — красим его в акцентный.
-        styleControl.setTitleTextAttributes([.foregroundColor: Theme.accent,
-                                             .font: UIFont.systemFont(ofSize: 14, weight: .semibold)],
-                                            for: .selected)
-        styleControl.setTitleTextAttributes([.foregroundColor: Theme.textSecondary], for: .normal)
+        // `selectedSegmentTintColor` есть только с iOS 13, поэтому заливку
+        // выбранного сегмента задаём через атрибуты заголовков.
+        styleControl.setTitleTextAttributes([.foregroundColor: Theme.buttonText], for: .selected)
+        styleControl.setTitleTextAttributes([.foregroundColor: Theme.textPrimary], for: .normal)
         styleRow.addSubview(styleControl)
         NSLayoutConstraint.activate([
             styleControl.trailingAnchor.constraint(equalTo: styleRow.trailingAnchor, constant: -16),

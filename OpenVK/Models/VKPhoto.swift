@@ -1,31 +1,5 @@
 import UIKit
 
-/// Альбом фотографий.
-struct VKPhotoAlbum {
-    let id: Int
-    let title: String
-    let count: Int
-
-    init?(dict: [String: Any]) {
-        let identifier = J.getInt(dict, "id", 0)
-        guard identifier != 0 else { return nil }
-        id = identifier
-        title = J.getString(dict, "title", "")
-        count = J.getInt(dict, "count", 0)
-    }
-
-    /// Системный альбом «Все фотографии» без названия — подписываем как «Все».
-    var displayTitle: String {
-        return title.isEmpty ? "Без названия" : title
-    }
-
-    static func readList(_ container: Any?) -> [VKPhotoAlbum] {
-        return J.getArr(container, "items").compactMap {
-            VKPhotoAlbum(dict: ($0 as? [String: Any]) ?? [:])
-        }
-    }
-}
-
 /// Фотография из вложения.
 final class VKPhoto {
     let id: Int

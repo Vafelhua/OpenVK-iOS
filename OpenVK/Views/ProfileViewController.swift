@@ -17,7 +17,8 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
     private var isComposerVisible = true
 
     private var attachments: [String] = []
-    private var pendingImages: [Data] = []
+    private var pendingImageData: Data?
+    private var previewImage: RemoteImageView?
     private var pendingAudioTitle: String?
 
     override var wallOwnerId: Int { return LocalSettings.shared.userId }
@@ -235,43 +236,21 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         picker.dismiss(animated: true, completion: nil)
         guard let image = info[.originalImage] as? UIImage else { return }
         guard let data = image.jpegData(compressionQuality: 0.8) else { return }
-        // VK принимает не больше 10 вложений — дальше сервер всё равно откажет.
-        guard pendingImages.count < 9 else {
-            presentAlert(title: "Много фото", message: "К одной записи можно прикрепить не больше 10 фотографий.")
-            return
-        }
+        pendingImageData = data
 
-        pendingImages.append(data)
-        previewStack.addArrangedSubview(makePreview(for: image))
-        previewHeight.constant = 56
-    }
-
-    /// Миниатюра прикреплённого фото; тап убирает её из набора.
-    private func makePreview(for image: UIImage) -> UIView {
-        let view = RemoteImageView(cornerRadius: Theme.cardRadius)
+        // Повторный выбор заменяет превью, а не добавляет второе:
+        // иначе в композере накапливались дубли одного и того же фото.
+        clearPreview()
+        let view = RemoteImageView(cornerRadius: 10)
         view.image = image
         view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             view.widthAnchor.constraint(equalToConstant: 56),
             view.heightAnchor.constraint(equalToConstant: 56)
         ])
-        view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(previewTapped(_:))))
-        return view
-    }
-
-    @objc private func previewTapped(_ recognizer: UITapGestureRecognizer) {
-        guard let target = recognizer.view else { return }
-        var index = 0
-        for view in previewStack.arrangedSubviews {
-            if view === target {
-                if pendingImages.indices.contains(index) { pendingImages.remove(at: index) }
-                previewStack.removeArrangedSubview(view)
-                view.removeFromSuperview()
-                previewHeight.constant = previewStack.arrangedSubviews.isEmpty ? 0 : 56
-                return
-            }
-            index += 1
-        }
+        previewStack.addArrangedSubview(view)
+        previewImage = view
+        previewHeight.constant = 56
     }
 
     func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
@@ -328,7 +307,7 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         }
 
         publishButton.isEnabled = false
-        uploadPendingPhotos { [weak self] didUpload in
+        uploadPhotoIfNeeded { [weak self] didUpload in
             // completion вызывается и при ошибке загрузки — иначе кнопка
             // публикации навсегда оставалась disabled.
             guard let self = self else { return }
@@ -357,35 +336,15 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         }
     }
 
-    /// Загружает все прикреплённые фото по очереди.
-    /// `completion(true)` — всё загружено, можно публиковать;
+    /// photos.getWallUploadServer → upload → photos.saveWallPhoto.
+    /// `completion(true)` — фото загружено, можно публиковать;
     /// `completion(false)` — загрузка сорвалась, о выходе сообщено пользователю.
-    private func uploadPendingPhotos(completion: @escaping (Bool) -> Void) {
-        guard pendingImages.isEmpty == false else {
+    private func uploadPhotoIfNeeded(completion: @escaping (Bool) -> Void) {
+        guard let data = pendingImageData else {
             completion(true)
             return
         }
 
-        // Фото загружаются строго по одному: параллельные запросы к одному
-        // upload-серверу на части инстансов отвечают ошибкой.
-        func loadNext(_ index: Int) {
-            guard index < pendingImages.count else {
-                completion(true)
-                return
-            }
-            uploadWallPhoto(pendingImages[index]) { success in
-                guard success else {
-                    completion(false)
-                    return
-                }
-                loadNext(index + 1)
-            }
-        }
-        loadNext(0)
-    }
-
-    /// photos.getWallUploadServer → upload → photos.saveWallPhoto.
-    private func uploadWallPhoto(_ data: Data, completion: @escaping (Bool) -> Void) {
         VKApiClient.shared.callDict("photos.getWallUploadServer", [:]) { [weak self] result in
             guard let self = self else { return }
             switch result {
@@ -444,9 +403,10 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
         placeholder.text = "Что у вас нового?"
         placeholder.textColor = Theme.textSecondary
         attachments = []
-        pendingImages = []
+        pendingImageData = nil
         pendingAudioTitle = nil
         clearPreview()
+        previewImage = nil
     }
 
     /// `removeFromSuperview` оставлял вьюхи в `arrangedSubviews` стека —
