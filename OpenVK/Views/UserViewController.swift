@@ -924,7 +924,7 @@ final class NotificationsViewController: TableScreenController {
 
         let authorName = profiles[userId]?.name ?? ""
         let commentText = J.getString(J.getDict(dict, "comment"), "text", "")
-        var attachedPhoto = VKPhoto(dict: J.getDict(dict, "photo"))
+        var attachedPhoto = VKPhoto(dict: J.getDict(dict, "photo") ?? [:])
 
         if attachedPhoto == nil {
             attachedPhoto = VKAttachment(dict: dict["attach"] as? [String: Any] ?? [:])?.photo

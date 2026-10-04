@@ -262,7 +262,7 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
     @objc private func previewTapped(_ recognizer: UITapGestureRecognizer) {
         guard let target = recognizer.view else { return }
         var index = 0
-        for case let view as UIView in previewStack.arrangedSubviews {
+        for view in previewStack.arrangedSubviews {
             if view === target {
                 if pendingImages.indices.contains(index) { pendingImages.remove(at: index) }
                 previewStack.removeArrangedSubview(view)
@@ -373,8 +373,7 @@ final class ProfileViewController: WallScreenController, UIImagePickerController
                 completion(true)
                 return
             }
-            uploadWallPhoto(pendingImages[index]) { [weak self] success in
-                guard let self = self else { return }
+            uploadWallPhoto(pendingImages[index]) { success in
                 guard success else {
                     completion(false)
                     return
