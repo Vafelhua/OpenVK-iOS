@@ -20,6 +20,10 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
     private let scopeButton = UIBarButtonItem(title: "Глобальная", style: .plain, target: nil, action: nil)
     private lazy var refreshButton = UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(refreshTapped))
     private lazy var searchButton = UIBarButtonItem(barButtonSystemItem: .search, target: self, action: #selector(searchTapped))
+    private let notificationsButton = UIBarButtonItem(title: "Уведомления",
+                                                      style: .plain,
+                                                      target: nil,
+                                                      action: nil)
 
     override var itemsCount: Int { return posts.count + foundUsers.count + foundPosts.count }
 
@@ -28,10 +32,16 @@ final class NewsfeedViewController: TableScreenController, UISearchBarDelegate {
         paginationEnabled = true
         scopeButton.target = self
         scopeButton.action = #selector(scopeTapped)
+        notificationsButton.target = self
+        notificationsButton.action = #selector(notificationsTapped)
         // Кнопка обновления — слева, как в клиенте OpenVK; справа поиск и охват.
         navigationItem.leftBarButtonItem = refreshButton
-        navigationItem.rightBarButtonItems = [searchButton, scopeButton]
+        navigationItem.rightBarButtonItems = [searchButton, scopeButton, notificationsButton]
         load()
+    }
+
+    @objc private func notificationsTapped() {
+        navigationController?.pushViewController(NotificationsViewController(), animated: true)
     }
 
     // MARK: - Загрузка
