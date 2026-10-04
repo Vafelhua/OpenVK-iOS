@@ -87,8 +87,9 @@ final class SettingsViewController: UIViewController {
         // Стиль оформления
         let styleRow = makeRow(title: "Стиль оформления")
         styleControl.translatesAutoresizingMaskIntoConstraints = false
-        styleControl.selectedSegmentTintColor = Theme.accent
-        styleControl.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .selected)
+        // `selectedSegmentTintColor` есть только с iOS 13, поэтому заливку
+        // выбранного сегмента задаём через атрибуты заголовков.
+        styleControl.setTitleTextAttributes([.foregroundColor: Theme.buttonText], for: .selected)
         styleControl.setTitleTextAttributes([.foregroundColor: Theme.textPrimary], for: .normal)
         styleRow.addSubview(styleControl)
         NSLayoutConstraint.activate([

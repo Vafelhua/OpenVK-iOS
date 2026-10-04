@@ -73,7 +73,7 @@ final class ConversationCell: UITableViewCell {
             timeLabel.trailingAnchor.constraint(equalTo: photoView.leadingAnchor, constant: -8),
             timeLabel.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 14),
 
-            separator.leadingAnchor.constraint(equalTo: separatorLeading),
+            separatorLeading,
             separator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             separator.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
             separator.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale)

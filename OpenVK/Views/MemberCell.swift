@@ -17,7 +17,6 @@ final class MemberCell: UITableViewCell {
         contentView.backgroundColor = Theme.card
         selectionStyle = .default
 
-        let separator = UIView()
         separator.backgroundColor = Theme.divider
         separator.translatesAutoresizingMaskIntoConstraints = false
 
@@ -42,7 +41,7 @@ final class MemberCell: UITableViewCell {
             textStack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 10),
             textStack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -10),
 
-            separator.leadingAnchor.constraint(equalTo: separatorLeading),
+            separatorLeading,
             separator.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             separator.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
             separator.heightAnchor.constraint(equalToConstant: 1 / UIScreen.main.scale)
